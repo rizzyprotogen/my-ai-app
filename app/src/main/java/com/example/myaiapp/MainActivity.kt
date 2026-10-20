@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+// Цветовая палитра в стиле ChatGPT Dark
 val ChatGptBackground = Color(0xFF202123)
 val BotMessageBackground = Color(0xFF343541)
 val UserMessageBackground = Color(0xFF444654)
@@ -58,7 +59,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
             TopAppBar(
                 title = {
                     Text(
-                        text = "RizzyAI тестовая модель :3",
+                        text = "RizzyAI", // НАЗВАНИЕ В ШАПКЕ
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextColor
@@ -155,7 +156,7 @@ fun ChatInputBar(
                 value = text,
                 onValueChange = onTextChange,
                 placeholder = {
-                    Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp)
+                    Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp) // ТЕКСТ В ПОЛЕ ВВОДА
                 },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
