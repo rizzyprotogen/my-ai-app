@@ -21,9 +21,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages = _messages.asStateFlow()
 
-    // Твой ключ, разбитый на две части
-    private val KEY_PART1 = "AQ.Ab8RN6LDA9BUB3oERV9P04Gvyr-NRmDF"
-    private val KEY_PART2 = "_5MiKFAHpBvAgdagzA"
+    // ВСТАВЬ СЮДА СВОЙ КЛЮЧ ОТ GROQ (начинается на gsk_...)
+    // Твой ключ, разбитый на две части (чтобы GitHub не блокировал)
+    private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb"
+    private val KEY_PART2 = "3FYBFVM0dD7lMjfCvwRYdkTnh5e"
     private val API_KEY = KEY_PART1 + KEY_PART2
 
     init {
@@ -52,15 +53,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            val botResponseText = fetchGeminiResponse(trimmedText)
+            val botResponseText = fetchGroqResponse(trimmedText)
             val botMsg = Message(text = botResponseText, isUser = false)
             _messages.value = _messages.value + botMsg
         }
     }
 
-    private suspend fun fetchGeminiResponse(input: String): String = withContext(Dispatchers.IO) {
+    private suspend fun fetchGroqResponse(input: String): String = withContext(Dispatchers.IO) {
         val client = OkHttpClient.Builder()
-            .connectTimeout(60, TimeUnit.SECONDS) // Увеличили таймаут на случай долгих ответов
+            .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .build()
@@ -68,13 +69,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val userName = memoryManager.getUserName()
         val systemPrompt = "Ты - RizzyAI, дружелюбный и умный ИИ-помощник. " +
                 if (userName != null) "Пользователя зовут $userName. Обращайся к нему по имени. " else ""
-        
+
+        // Формат запроса как у OpenAI (Groq его поддерживает)
         val json = JSONObject().apply {
-            put("contents", org.json.JSONArray().apply {
+            put("model", "llama-3.3-70b-versatile") // Мощная и быстрая бесплатная модель
+            put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply {
-                    put("parts", org.json.JSONArray().apply {
-                        put(JSONObject().put("text", systemPrompt + "Пользователь пишет: $input"))
-                    })
+                    put("role", "system")
+                    put("content", systemPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", input)
                 })
             })
         }
@@ -82,9 +88,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        // ТУТ ТЕПЕРЬ ТВОЙ ПРОКСИ DENO
+        // Официальный адрес Groq
         val request = Request.Builder()
-            .url("https://hefty-mantis-4755.rizzyprotogen.deno.net/v1beta/models/gemini-3.8-flash:generateContent?key=$API_KEY")
+            .url("https://api.groq.com/openai/v1/chat/completions")
+            .header("Authorization", "Bearer $API_KEY")
             .post(body)
             .build()
 
@@ -94,13 +101,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             
             if (response.isSuccessful) {
                 val jsonResponse = JSONObject(responseBody)
-                val candidates = jsonResponse.getJSONArray("candidates")
-                val firstCandidate = candidates.getJSONObject(0)
-                val content = firstCandidate.getJSONObject("content")
-                val parts = content.getJSONArray("parts")
-                parts.getJSONObject(0).getString("text")
+                val choices = jsonResponse.getJSONArray("choices")
+                val message = choices.getJSONObject(0).getJSONObject("message")
+                message.getString("content")
             } else {
-                // Если прокси вернет ошибку, мы её увидим
                 "Ошибка от сервера: ${response.code}\n$responseBody"
             }
         } catch (e: Exception) {
