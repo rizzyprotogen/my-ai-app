@@ -60,9 +60,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun fetchGeminiResponse(input: String): String = withContext(Dispatchers.IO) {
         val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS) // Увеличили таймаут на случай долгих ответов
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .build()
 
         val userName = memoryManager.getUserName()
@@ -82,9 +82,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        // ТУТ ТЕПЕРЬ ТВОЙ ПРОКСИ CLOUDFLARE
+        // ТУТ ТЕПЕРЬ ТВОЙ ПРОКСИ DENO
         val request = Request.Builder()
-            .url("https://quiet-river-ebb4.xxrizzyxxrob.workers.dev/v1beta/models/gemini-3.8-flash:generateContent?key=$API_KEY")
+            .url("https://hefty-mantis-4755.rizzyprotogen.deno.net/v1beta/models/gemini-3.8-flash:generateContent?key=$API_KEY")
             .post(body)
             .build()
 
