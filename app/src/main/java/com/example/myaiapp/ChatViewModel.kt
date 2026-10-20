@@ -31,8 +31,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
-    private val KEY_PART1 = "gsk_ТУТ_ПЕРВАЯ_ПОЛОВИНА" // НЕ ЗАБУДЬ ВСТАВИТЬ КЛЮЧ
-    private val KEY_PART2 = "ТУТ_ВТОРАЯ_ПОЛОВИНА"
+    private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb" // твоя первая часть
+    private val KEY_PART2 = "3FYBFVM0dD7lMjfCvwRYdkTnh5e"     // твоя вторая часть
     private val API_KEY = KEY_PART1 + KEY_PART2
 
     init {
