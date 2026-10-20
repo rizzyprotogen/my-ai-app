@@ -3,7 +3,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="My AI App"
+        android:label="RizzyAI"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
