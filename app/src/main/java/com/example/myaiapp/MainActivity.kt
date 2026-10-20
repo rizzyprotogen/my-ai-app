@@ -58,7 +58,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
             TopAppBar(
                 title = {
                     Text(
-                        text = "ChatGPT AI",
+                        text = "RizzyAI тестовая модель :3",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextColor
@@ -155,7 +155,7 @@ fun ChatInputBar(
                 value = text,
                 onValueChange = onTextChange,
                 placeholder = {
-                    Text(text = "Сообщение ChatGPT...", color = HintColor, fontSize = 15.sp)
+                    Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp)
                 },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
