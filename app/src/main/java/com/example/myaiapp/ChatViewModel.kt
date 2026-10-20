@@ -21,12 +21,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages = _messages.asStateFlow()
 
-    // ВСТАВЬ СЮДА СВОЙ КЛЮЧ ОТ GROQ (начинается на gsk_...)
-    // Твой ключ, разбитый на две части (чтобы GitHub не блокировал)
+    // ВСТАВЬ СВОЙ КЛЮЧ ОТ GROQ (разбитый на две части, как ты делал)
     private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb"
     private val KEY_PART2 = "3FYBFVM0dD7lMjfCvwRYdkTnh5e"
     private val API_KEY = KEY_PART1 + KEY_PART2
-
+    
     init {
         val savedName = memoryManager.getUserName()
         val initialGreeting = if (savedName != null) {
@@ -70,25 +69,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val systemPrompt = "Ты - RizzyAI, дружелюбный и умный ИИ-помощник. " +
                 if (userName != null) "Пользователя зовут $userName. Обращайся к нему по имени. " else ""
 
-        // Формат запроса как у OpenAI (Groq его поддерживает)
-        val json = JSONObject().apply {
-            put("model", "openai/gpt-oss-120b") // Мощная и быстрая бесплатная модель
-            put("messages", org.json.JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "system")
-                    put("content", systemPrompt)
-                })
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", input)
-                })
+        // Собираем историю сообщений для отправки в Groq
+        val messagesArray = org.json.JSONArray()
+        
+        // 1. Системный промпт (характер ИИ)
+        messagesArray.put(JSONObject().apply {
+            put("role", "system")
+            put("content", systemPrompt)
+        })
+
+        // 2. Вся история из текущего чата (чтобы она помнила "селедку")
+        _messages.value.forEach { msg ->
+            messagesArray.put(JSONObject().apply {
+                put("role", if (msg.isUser) "user" else "assistant")
+                put("content", msg.text)
             })
+        }
+
+        // 3. Итоговый JSON
+        val json = JSONObject().apply {
+            put("model", "openai/gpt-oss-120b")
+            put("messages", messagesArray)
         }
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        // Официальный адрес Groq
         val request = Request.Builder()
             .url("https://api.groq.com/openai/v1/chat/completions")
             .header("Authorization", "Bearer $API_KEY")
