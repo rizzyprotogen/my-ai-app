@@ -21,7 +21,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages = _messages.asStateFlow()
 
-    // Твой ключ, разбитый на две части, чтобы GitHub не блокировал сохранение
+    // Твой ключ, разбитый на две части
     private val KEY_PART1 = "AQ.Ab8RN6LDA9BUB3oERV9P04Gvyr-NRmDF"
     private val KEY_PART2 = "_5MiKFAHpBvAgdagzA"
     private val API_KEY = KEY_PART1 + KEY_PART2
@@ -82,9 +82,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        // Мы используем модель gemini-1.5-flash (она самая быстрая и бесплатная)
+        // ИСПОЛЬЗУЕМ АКТУАЛЬНУЮ МОДЕЛЬ GEMINI-2.5-FLASH
         val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$API_KEY")
+            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$API_KEY")
             .post(body)
             .build()
 
@@ -100,8 +100,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val parts = content.getJSONArray("parts")
                 parts.getJSONObject(0).getString("text")
             } else {
-                // Если ключ не подошел, мы выведем ошибку прямо в чат, чтобы знать причину
-                "Ошибка от Google: ${response.code} - $responseBody"
+                // Показываем полную ошибку от Google в чате
+                "Ошибка от Google: ${response.code}\n$responseBody"
             }
         } catch (e: Exception) {
             "Ошибка сети: ${e.message}"
