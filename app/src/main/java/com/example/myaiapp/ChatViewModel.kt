@@ -72,7 +72,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         // Формат запроса как у OpenAI (Groq его поддерживает)
         val json = JSONObject().apply {
-            put("model", "llama-3.3-70b-versatile") // Мощная и быстрая бесплатная модель
+            put("model", "openai/gpt-oss-120b") // Мощная и быстрая бесплатная модель
             put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
