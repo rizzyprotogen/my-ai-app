@@ -27,22 +27,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentChatId = MutableStateFlow<String?>(null)
     val currentChatId = _currentChatId.asStateFlow()
 
-    // Индикатор загрузки (для анимации "думания")
+    // Индикатор загрузки
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
+    // ВСТАВЬ СВОЙ КЛЮЧ ОТ GROQ (разбитый на две части)
     private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb" // твоя первая часть
     private val KEY_PART2 = "3FYBFVM0dD7lMjfCvwRYdkTnh5e"     // твоя вторая часть
     private val API_KEY = KEY_PART1 + KEY_PART2
 
     init {
-        // Загружаем сохраненные чаты при запуске
-        val savedChats = memoryManager.loadChats()
-        if (savedChats.isEmpty()) {
-            createNewChat() // Если чатов нет, создаем первый
-        } else {
-            _chats.value = savedChats
-            _currentChatId.value = savedChats.first().id
+        try {
+            val savedChats = memoryManager.loadChats()
+            if (savedChats.isEmpty()) {
+                createNewChat()
+            } else {
+                _chats.value = savedChats
+                _currentChatId.value = savedChats.first().id
+            }
+        } catch (e: Exception) {
+            // Если при загрузке что-то пошло не так, создаем чистый чат
+            createNewChat()
         }
     }
 
@@ -68,37 +73,48 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val chatId = _currentChatId.value ?: return
         val currentChat = _chats.value.find { it.id == chatId } ?: return
 
-        // Сохраняем имя, если пользователь представился
-        val nameRegex = Regex("""(?i)(?:меня зовут|мо[её] имя)\s+([a-zA-Zа-яА-ЯёЁ]+)""")
-        val matchResult = nameRegex.find(trimmedText)
-        if (matchResult != null) {
-            val extractedName = matchResult.groupValues[1].replaceFirstChar { it.uppercase() }
-            memoryManager.saveUserName(extractedName)
-        }
-
-        // Добавляем сообщение пользователя
-        val userMsg = Message(text = trimmedText, isUser = true)
-        var updatedMessages = currentChat.messages + userMsg
-        var updatedTitle = currentChat.title
-
-        // Если это первый вопрос в чате, делаем его название по первым словам
-        if (currentChat.title == "Новый чат" && currentChat.messages.size <= 1) {
-            updatedTitle = trimmedText.take(25) + if (trimmedText.length > 25) "..." else ""
-        }
-
-        // Обновляем чат
-        updateChatInList(chatId, updatedMessages, updatedTitle)
-        _isLoading.value = true
-
-        viewModelScope.launch {
-            val botResponseText = fetchGroqResponse(trimmedText, updatedMessages)
-            val botMsg = Message(text = botResponseText, isUser = false)
-            
-            // Получаем актуальный чат (вдруг пользователь переключился, пока ИИ думала)
-            val latestChat = _chats.value.find { it.id == chatId }
-            if (latestChat != null) {
-                updateChatInList(chatId, latestChat.messages + botMsg, latestChat.title)
+        try {
+            // Сохраняем имя
+            val nameRegex = Regex("""(?i)(?:меня зовут|мо[её] имя)\s+([a-zA-Zа-яА-ЯёЁ]+)""")
+            val matchResult = nameRegex.find(trimmedText)
+            if (matchResult != null) {
+                val extractedName = matchResult.groupValues[1].replaceFirstChar { it.uppercase() }
+                memoryManager.saveUserName(extractedName)
             }
+
+            val userMsg = Message(text = trimmedText, isUser = true)
+            var updatedMessages = currentChat.messages + userMsg
+            var updatedTitle = currentChat.title
+
+            if (currentChat.title == "Новый чат" && currentChat.messages.size <= 1) {
+                updatedTitle = trimmedText.take(25) + if (trimmedText.length > 25) "..." else ""
+            }
+
+            updateChatInList(chatId, updatedMessages, updatedTitle)
+            _isLoading.value = true
+
+            viewModelScope.launch {
+                try {
+                    val botResponseText = fetchGroqResponse(trimmedText, updatedMessages)
+                    val botMsg = Message(text = botResponseText, isUser = false)
+                    
+                    val latestChat = _chats.value.find { it.id == chatId }
+                    if (latestChat != null) {
+                        updateChatInList(chatId, latestChat.messages + botMsg, latestChat.title)
+                    }
+                } catch (e: Exception) {
+                    // Если ошибка сети или API, показываем её в чате
+                    val latestChat = _chats.value.find { it.id == chatId }
+                    if (latestChat != null) {
+                        val errorMsg = Message(text = "Ошибка: ${e.message}", isUser = false)
+                        updateChatInList(chatId, latestChat.messages + errorMsg, latestChat.title)
+                    }
+                } finally {
+                    _isLoading.value = false
+                }
+            }
+        } catch (e: Exception) {
+            // Глобальная защита от вылета
             _isLoading.value = false
         }
     }
@@ -111,7 +127,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun saveChats() {
-        memoryManager.saveChats(_chats.value)
+        try {
+            memoryManager.saveChats(_chats.value)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private suspend fun fetchGroqResponse(input: String, history: List<Message>): String = withContext(Dispatchers.IO) {
@@ -131,7 +151,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             put("content", systemPrompt)
         })
 
-        // Передаем историю только текущего чата
         history.forEach { msg ->
             messagesArray.put(JSONObject().apply {
                 put("role", if (msg.isUser) "user" else "assistant")
