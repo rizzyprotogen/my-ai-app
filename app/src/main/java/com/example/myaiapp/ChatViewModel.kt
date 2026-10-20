@@ -13,35 +13,60 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryManager = MemoryManager(application)
 
-    private val _messages = MutableStateFlow<List<Message>>(emptyList())
-    val messages = _messages.asStateFlow()
+    // Список всех чатов
+    private val _chats = MutableStateFlow<List<ChatSession>>(emptyList())
+    val chats = _chats.asStateFlow()
 
-    // ВСТАВЬ СВОЙ КЛЮЧ ОТ GROQ (разбитый на две части, как ты делал)
-    private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb"
-    private val KEY_PART2 = "3FYBFVM0dD7lMjfCvwRYdkTnh5e"
+    // Текущий активный чат
+    private val _currentChatId = MutableStateFlow<String?>(null)
+    val currentChatId = _currentChatId.asStateFlow()
+
+    // Индикатор загрузки (для анимации "думания")
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading = _isLoading.asStateFlow()
+
+    private val KEY_PART1 = "gsk_ТУТ_ПЕРВАЯ_ПОЛОВИНА" // НЕ ЗАБУДЬ ВСТАВИТЬ КЛЮЧ
+    private val KEY_PART2 = "ТУТ_ВТОРАЯ_ПОЛОВИНА"
     private val API_KEY = KEY_PART1 + KEY_PART2
-    
+
     init {
-        val savedName = memoryManager.getUserName()
-        val initialGreeting = if (savedName != null) {
-            "С возвращением, $savedName! Я RizzyAI. Чем могу помочь?"
+        // Загружаем сохраненные чаты при запуске
+        val savedChats = memoryManager.loadChats()
+        if (savedChats.isEmpty()) {
+            createNewChat() // Если чатов нет, создаем первый
         } else {
-            "Привет! Я RizzyAI. Как тебя зовут? (напиши: «Меня зовут ...»)"
+            _chats.value = savedChats
+            _currentChatId.value = savedChats.first().id
         }
-        _messages.value = listOf(Message(text = initialGreeting, isUser = false))
+    }
+
+    fun createNewChat() {
+        val newChat = ChatSession(
+            id = UUID.randomUUID().toString(),
+            title = "Новый чат",
+            messages = listOf(Message(text = "Привет! Я RizzyAI. Чем могу помочь?", isUser = false))
+        )
+        _chats.value = listOf(newChat) + _chats.value
+        _currentChatId.value = newChat.id
+        saveChats()
+    }
+
+    fun selectChat(chatId: String) {
+        _currentChatId.value = chatId
     }
 
     fun sendMessage(text: String) {
         val trimmedText = text.trim()
-        if (trimmedText.isEmpty()) return
-
-        val userMsg = Message(text = trimmedText, isUser = true)
-        _messages.value = _messages.value + userMsg
+        if (trimmedText.isEmpty() || _isLoading.value) return
+        
+        val chatId = _currentChatId.value ?: return
+        val currentChat = _chats.value.find { it.id == chatId } ?: return
 
         // Сохраняем имя, если пользователь представился
         val nameRegex = Regex("""(?i)(?:меня зовут|мо[её] имя)\s+([a-zA-Zа-яА-ЯёЁ]+)""")
@@ -51,14 +76,45 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             memoryManager.saveUserName(extractedName)
         }
 
+        // Добавляем сообщение пользователя
+        val userMsg = Message(text = trimmedText, isUser = true)
+        var updatedMessages = currentChat.messages + userMsg
+        var updatedTitle = currentChat.title
+
+        // Если это первый вопрос в чате, делаем его название по первым словам
+        if (currentChat.title == "Новый чат" && currentChat.messages.size <= 1) {
+            updatedTitle = trimmedText.take(25) + if (trimmedText.length > 25) "..." else ""
+        }
+
+        // Обновляем чат
+        updateChatInList(chatId, updatedMessages, updatedTitle)
+        _isLoading.value = true
+
         viewModelScope.launch {
-            val botResponseText = fetchGroqResponse(trimmedText)
+            val botResponseText = fetchGroqResponse(trimmedText, updatedMessages)
             val botMsg = Message(text = botResponseText, isUser = false)
-            _messages.value = _messages.value + botMsg
+            
+            // Получаем актуальный чат (вдруг пользователь переключился, пока ИИ думала)
+            val latestChat = _chats.value.find { it.id == chatId }
+            if (latestChat != null) {
+                updateChatInList(chatId, latestChat.messages + botMsg, latestChat.title)
+            }
+            _isLoading.value = false
         }
     }
 
-    private suspend fun fetchGroqResponse(input: String): String = withContext(Dispatchers.IO) {
+    private fun updateChatInList(chatId: String, newMessages: List<Message>, newTitle: String) {
+        _chats.value = _chats.value.map { 
+            if (it.id == chatId) it.copy(messages = newMessages, title = newTitle) else it 
+        }
+        saveChats()
+    }
+
+    private fun saveChats() {
+        memoryManager.saveChats(_chats.value)
+    }
+
+    private suspend fun fetchGroqResponse(input: String, history: List<Message>): String = withContext(Dispatchers.IO) {
         val client = OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
@@ -69,26 +125,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val systemPrompt = "Ты - RizzyAI, дружелюбный и умный ИИ-помощник. " +
                 if (userName != null) "Пользователя зовут $userName. Обращайся к нему по имени. " else ""
 
-        // Собираем историю сообщений для отправки в Groq
         val messagesArray = org.json.JSONArray()
-        
-        // 1. Системный промпт (характер ИИ)
         messagesArray.put(JSONObject().apply {
             put("role", "system")
             put("content", systemPrompt)
         })
 
-        // 2. Вся история из текущего чата (чтобы она помнила "селедку")
-        _messages.value.forEach { msg ->
+        // Передаем историю только текущего чата
+        history.forEach { msg ->
             messagesArray.put(JSONObject().apply {
                 put("role", if (msg.isUser) "user" else "assistant")
                 put("content", msg.text)
             })
         }
 
-        // 3. Итоговый JSON
         val json = JSONObject().apply {
-            put("model", "openai/gpt-oss-120b")
+            put("model", "openai/gpt-oss-120b") 
             put("messages", messagesArray)
         }
 
