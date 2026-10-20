@@ -84,7 +84,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         // ИСПОЛЬЗУЕМ АКТУАЛЬНУЮ МОДЕЛЬ GEMINI-2.5-FLASH
         val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$API_KEY")
+            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$API_KEY")
             .post(body)
             .build()
 
