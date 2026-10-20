@@ -82,9 +82,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val body = json.toString().toRequestBody(mediaType)
 
-        // ИСПОЛЬЗУЕМ АКТУАЛЬНУЮ МОДЕЛЬ GEMINI-2.5-FLASH
+        // ТУТ ТЕПЕРЬ ТВОЙ ПРОКСИ CLOUDFLARE
         val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$API_KEY")
+            .url("https://quiet-river-ebb4.xxrizzyxxrob.workers.dev/v1beta/models/gemini-3.8-flash:generateContent?key=$API_KEY")
             .post(body)
             .build()
 
@@ -100,8 +100,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val parts = content.getJSONArray("parts")
                 parts.getJSONObject(0).getString("text")
             } else {
-                // Показываем полную ошибку от Google в чате
-                "Ошибка от Google: ${response.code}\n$responseBody"
+                // Если прокси вернет ошибку, мы её увидим
+                "Ошибка от сервера: ${response.code}\n$responseBody"
             }
         } catch (e: Exception) {
             "Ошибка сети: ${e.message}"
