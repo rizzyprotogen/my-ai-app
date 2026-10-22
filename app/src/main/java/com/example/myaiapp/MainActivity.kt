@@ -12,9 +12,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,19 +40,38 @@ val InputBarBackground = Color(0xFF40414F)
 val AccentGreen = Color(0xFF10A37F)
 val TextColor = Color(0xFFECECF1)
 val HintColor = Color(0xFF8E8EA0)
+val DangerRed = Color(0xFFCF6679)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ChatGptScreen()
+            RizzyApp()
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
+fun RizzyApp(chatViewModel: ChatViewModel = viewModel()) {
+    var showSettings by remember { mutableStateOf(false) }
+
+    if (showSettings) {
+        SettingsScreen(
+            chatViewModel = chatViewModel,
+            onBack = { showSettings = false }
+        )
+    } else {
+        ChatGptScreen(
+            chatViewModel = chatViewModel,
+            onOpenSettings = { showSettings = true }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     val chats by chatViewModel.chats.collectAsState()
     val currentChatId by chatViewModel.currentChatId.collectAsState()
     val isLoading by chatViewModel.isLoading.collectAsState()
@@ -62,7 +84,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Автоматическая прокрутка вниз при новом сообщении
     LaunchedEffect(messages.size, isLoading) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -76,6 +97,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                 drawerContainerColor = SidebarBackground,
                 modifier = Modifier.width(300.dp)
             ) {
+                Spacer(modifier = Modifier.height(16.dp))
                 // Кнопка нового чата в панели
                 Button(
                     onClick = {
@@ -114,6 +136,19 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                         )
                     }
                 }
+                
+                Divider(color = UserMessageBackground)
+                // Кнопка настроек внизу панели
+                ListItem(
+                    headlineContent = { Text("Настройки", color = TextColor) },
+                    leadingContent = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextColor) },
+                    modifier = Modifier.clickable {
+                        onOpenSettings()
+                        scope.launch { drawerState.close() }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     ) {
@@ -140,9 +175,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                             Icon(Icons.Default.Add, contentDescription = "Новый чат", tint = TextColor)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = ChatGptBackground
-                    )
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = ChatGptBackground)
                 )
             },
             containerColor = ChatGptBackground
@@ -152,7 +185,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Лента сообщений
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -165,7 +197,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                         MessageBubble(message)
                     }
                     
-                    // Индикатор "Думания" (пока нет анимации, просто текст)
                     if (isLoading) {
                         item {
                             Text(
@@ -178,7 +209,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                     }
                 }
 
-                // Поле ввода
                 ChatInputBar(
                     text = inputText,
                     onTextChange = { inputText = it },
@@ -188,6 +218,112 @@ fun ChatGptScreen(chatViewModel: ChatViewModel = viewModel()) {
                     }
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
+    val settings by chatViewModel.settings.collectAsState()
+    var showClearDialog by remember { mutableStateOf(false) }
+    var promptText by remember { mutableStateOf(settings.systemPrompt) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Настройки", color = TextColor) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextColor)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ChatGptBackground)
+            )
+        },
+        containerColor = ChatGptBackground
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Модель ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = settings.selectedModel == "openai/gpt-oss-120b",
+                    onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-120b")) }
+                )
+                Text("Умная (gpt-oss-120b)", color = TextColor)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = settings.selectedModel == "openai/gpt-oss-20b",
+                    onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-20b")) }
+                )
+                Text("Быстрая (gpt-oss-20b)", color = TextColor)
+            }
+
+            Divider(color = UserMessageBackground)
+
+            Text("Креативность (Температура): ${String.format("%.1f", settings.temperature)}", color = AccentGreen, fontWeight = FontWeight.Bold)
+            Slider(
+                value = settings.temperature,
+                onValueChange = { chatViewModel.updateSettings(settings.copy(temperature = it)) },
+                valueRange = 0f..1f
+            )
+
+            Divider(color = UserMessageBackground)
+
+            Text("Характер ИИ (Системный промпт)", color = AccentGreen, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = promptText,
+                onValueChange = { 
+                    promptText = it
+                    chatViewModel.updateSettings(settings.copy(systemPrompt = it))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextColor,
+                    unfocusedTextColor = TextColor,
+                    focusedBorderColor = AccentGreen,
+                    unfocusedBorderColor = HintColor
+                ),
+                placeholder = { Text("Например: Отвечай дерзко...", color = HintColor) }
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Button(
+                onClick = { showClearDialog = true },
+                colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Очистить все чаты")
+            }
+        }
+
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                title = { Text("Очистить чаты?") },
+                text = { Text("Все ваши диалоги будут безвозвратно удалены.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        chatViewModel.clearAllChats()
+                        showClearDialog = false
+                        onBack()
+                    }) { Text("Удалить", color = DangerRed) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDialog = false }) { Text("Отмена") }
+                },
+                containerColor = BotMessageBackground
+            )
         }
     }
 }
@@ -224,15 +360,8 @@ fun MessageBubble(message: Message) {
 }
 
 @Composable
-fun ChatInputBar(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onSend: () -> Unit
-) {
-    Surface(
-        color = ChatGptBackground,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
+    Surface(color = ChatGptBackground, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .padding(horizontal = 12.dp, vertical = 12.dp)
@@ -245,9 +374,7 @@ fun ChatInputBar(
             TextField(
                 value = text,
                 onValueChange = onTextChange,
-                placeholder = {
-                    Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp)
-                },
+                placeholder = { Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
