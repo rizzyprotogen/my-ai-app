@@ -21,6 +21,13 @@ data class ChatSession(
     var messages: List<Message> = emptyList()
 )
 
+// Модель настроек
+data class AppSettings(
+    val selectedModel: String = "openai/gpt-oss-120b", // По умолчанию умная
+    val temperature: Float = 0.7f,
+    val systemPrompt: String = "Ты - RizzyAI, дружелюбный и умный ИИ-помощник."
+)
+
 // Хранилище всех чатов и настроек
 class MemoryManager(context: Context) {
     private val prefs: SharedPreferences = 
@@ -90,8 +97,33 @@ class MemoryManager(context: Context) {
         return chats
     }
 
+    // --- 3. Управление настройками ---
+    fun saveSettings(settings: AppSettings) {
+        prefs.edit()
+            .putString(KEY_MODEL, settings.selectedModel)
+            .putFloat(KEY_TEMPERATURE, settings.temperature)
+            .putString(KEY_SYSTEM_PROMPT, settings.systemPrompt)
+            .apply()
+    }
+
+    fun loadSettings(): AppSettings {
+        return AppSettings(
+            selectedModel = prefs.getString(KEY_MODEL, "openai/gpt-oss-120b") ?: "openai/gpt-oss-120b",
+            temperature = prefs.getFloat(KEY_TEMPERATURE, 0.7f),
+            systemPrompt = prefs.getString(KEY_SYSTEM_PROMPT, "Ты - RizzyAI, дружелюбный и умный ИИ-помощник.") ?: "Ты - RizzyAI, дружелюбный и умный ИИ-помощник."
+        )
+    }
+
+    // --- 4. Очистка всех чатов ---
+    fun clearAllChats() {
+        prefs.edit().remove(KEY_CHATS).apply()
+    }
+
     companion object {
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_CHATS = "all_chats"
+        private const val KEY_MODEL = "selected_model"
+        private const val KEY_TEMPERATURE = "temperature"
+        private const val KEY_SYSTEM_PROMPT = "system_prompt"
     }
 }
