@@ -28,14 +28,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
-    // Настройки (пока загружаем дефолтные, потом прикрутим экран настроек)
     private val _settings = MutableStateFlow(AppSettings())
     val settings = _settings.asStateFlow()
 
-    // ВСТАВЬ СВОЙ КЛЮЧ ОТ GROQ (разбитый на две части)
-    private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb" // твоя первая часть
-    private val KEY_PART2 = "3FYBFVM0dD7lMjfCvwRYdkTnh5e"     // твоя вторая часть
-    private val API_KEY = KEY_PART1 + KEY_PART2
+    // Ключ будет взят из GitHub Secrets при сборке
+    private val API_KEY = BuildConfig.GROQ_API_KEY
 
     init {
         try {
@@ -46,7 +43,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _chats.value = savedChats
                 _currentChatId.value = savedChats.first().id
             }
-            // Загружаем сохраненные настройки
             _settings.value = memoryManager.loadSettings()
         } catch (e: Exception) {
             createNewChat()
@@ -87,21 +83,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val currentChat = _chats.value.find { it.id == chatId } ?: return
 
         try {
-            val nameRegex = Regex("""(?i)(?:меня зовут|мо[её] имя)\s+([a-zA-Zа-яА-ЯёЁ]+)""")
-            val matchResult = nameRegex.find(trimmedText)
-            if (matchResult != null) {
-                val extractedName = matchResult.groupValues[1].replaceFirstChar { it.uppercase() }
-                memoryManager.saveUserName(extractedName)
-            }
-
             val userMsg = Message(text = trimmedText, isUser = true)
-            var updatedMessages = currentChat.messages + userMsg
+            val updatedMessages = currentChat.messages + userMsg
             var updatedTitle = currentChat.title
-
             if (currentChat.title == "Новый чат" && currentChat.messages.size <= 1) {
                 updatedTitle = trimmedText.take(25) + if (trimmedText.length > 25) "..." else ""
             }
-
             updateChatInList(chatId, updatedMessages, updatedTitle)
             _isLoading.value = true
 
@@ -154,10 +141,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val userName = memoryManager.getUserName()
         val currentSettings = _settings.value
         
-        // Берем системный промпт из настроек и добавляем имя
         var systemPrompt = currentSettings.systemPrompt
         if (userName != null) {
-            systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
+            systemPrompt += " Пользователя зовут $userName."
         }
 
         val messagesArray = org.json.JSONArray()
@@ -174,9 +160,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val json = JSONObject().apply {
-            // Используем модель из настроек (по умолчанию gpt-oss-120b)
             put("model", currentSettings.selectedModel) 
-            put("temperature", currentSettings.temperature)
             put("messages", messagesArray)
         }
 
