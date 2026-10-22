@@ -19,17 +19,18 @@ import java.util.concurrent.TimeUnit
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryManager = MemoryManager(application)
 
-    // Список всех чатов
     private val _chats = MutableStateFlow<List<ChatSession>>(emptyList())
     val chats = _chats.asStateFlow()
 
-    // Текущий активный чат
     private val _currentChatId = MutableStateFlow<String?>(null)
     val currentChatId = _currentChatId.asStateFlow()
 
-    // Индикатор загрузки
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
+
+    // Настройки (пока загружаем дефолтные, потом прикрутим экран настроек)
+    private val _settings = MutableStateFlow(AppSettings())
+    val settings = _settings.asStateFlow()
 
     // ВСТАВЬ СВОЙ КЛЮЧ ОТ GROQ (разбитый на две части)
     private val KEY_PART1 = "gsk_BnNgQ7PBrdiVVtUROZSoWGdyb" // твоя первая часть
@@ -45,8 +46,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _chats.value = savedChats
                 _currentChatId.value = savedChats.first().id
             }
+            // Загружаем сохраненные настройки
+            _settings.value = memoryManager.loadSettings()
         } catch (e: Exception) {
-            // Если при загрузке что-то пошло не так, создаем чистый чат
             createNewChat()
         }
     }
@@ -66,6 +68,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _currentChatId.value = chatId
     }
 
+    fun updateSettings(newSettings: AppSettings) {
+        _settings.value = newSettings
+        memoryManager.saveSettings(newSettings)
+    }
+
+    fun clearAllChats() {
+        _chats.value = emptyList()
+        memoryManager.clearAllChats()
+        createNewChat()
+    }
+
     fun sendMessage(text: String) {
         val trimmedText = text.trim()
         if (trimmedText.isEmpty() || _isLoading.value) return
@@ -74,7 +87,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val currentChat = _chats.value.find { it.id == chatId } ?: return
 
         try {
-            // Сохраняем имя
             val nameRegex = Regex("""(?i)(?:меня зовут|мо[её] имя)\s+([a-zA-Zа-яА-ЯёЁ]+)""")
             val matchResult = nameRegex.find(trimmedText)
             if (matchResult != null) {
@@ -103,7 +115,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         updateChatInList(chatId, latestChat.messages + botMsg, latestChat.title)
                     }
                 } catch (e: Exception) {
-                    // Если ошибка сети или API, показываем её в чате
                     val latestChat = _chats.value.find { it.id == chatId }
                     if (latestChat != null) {
                         val errorMsg = Message(text = "Ошибка: ${e.message}", isUser = false)
@@ -114,7 +125,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         } catch (e: Exception) {
-            // Глобальная защита от вылета
             _isLoading.value = false
         }
     }
@@ -142,8 +152,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .build()
 
         val userName = memoryManager.getUserName()
-        val systemPrompt = "Ты - RizzyAI, дружелюбный и умный ИИ-помощник. " +
-                if (userName != null) "Пользователя зовут $userName. Обращайся к нему по имени. " else ""
+        val currentSettings = _settings.value
+        
+        // Берем системный промпт из настроек и добавляем имя
+        var systemPrompt = currentSettings.systemPrompt
+        if (userName != null) {
+            systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
+        }
 
         val messagesArray = org.json.JSONArray()
         messagesArray.put(JSONObject().apply {
@@ -159,7 +174,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val json = JSONObject().apply {
-            put("model", "openai/gpt-oss-120b") 
+            // Используем модель из настроек (по умолчанию gpt-oss-120b)
+            put("model", currentSettings.selectedModel) 
+            put("temperature", currentSettings.temperature)
             put("messages", messagesArray)
         }
 
