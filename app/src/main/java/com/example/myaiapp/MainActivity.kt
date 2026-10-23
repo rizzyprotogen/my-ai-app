@@ -31,8 +31,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.halilibo.richtext.markdown.Markdown
-import com.halilibo.richtext.ui.RichText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -82,7 +80,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Автопрокрутка
     LaunchedEffect(messages.size, isLoading) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -151,7 +148,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                         item { TypingIndicator() }
                     }
                     
-                    // ПУСТОЕ МЕСТО ВНИЗУ (чтобы можно было прокрутить выше)
                     item { Spacer(modifier = Modifier.height(200.dp)) }
                 }
 
@@ -165,6 +161,16 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
+// Функция очистки текста от Markdown
+fun cleanMarkdown(text: String): String {
+    return text
+        .replace("**", "")
+        .replace("\\text{", "")
+        .replace("\\", "")
+        .replace("{", "")
+        .replace("}", "")
+}
+
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
@@ -173,7 +179,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
         if (isLatest) {
             val text = message.text
             var i = 0
-            // Печать по 7 символов за 1 мс (очень быстро)
             while (i < text.length) {
                 val end = (i + 7).coerceAtMost(text.length)
                 displayedText = text.substring(0, end)
@@ -191,14 +196,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
         Box(modifier = Modifier.widthIn(max = 300.dp).clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            // Если сообщение от ИИ, используем RichText (Markdown) для таблиц и жирного шрифта
-            if (message.isUser) {
-                Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
-            } else {
-                RichText(modifier = Modifier.fillMaxWidth()) {
-                    Markdown(content = displayedText)
-                }
-            }
+            Text(text = cleanMarkdown(displayedText), color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
         }
     }
 }
@@ -222,7 +220,7 @@ fun TypingIndicator() {
 fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
     val settings by chatViewModel.settings.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
-    var expanded by remember { mutableStateOf(false) } // Для выпадающего списка
+    var expanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -254,7 +252,6 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
 
             Text("Характер ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
             
-            // Выпадающий список характеров
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = { expanded = true },
