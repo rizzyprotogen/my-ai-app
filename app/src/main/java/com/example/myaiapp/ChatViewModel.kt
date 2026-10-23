@@ -31,6 +31,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _settings = MutableStateFlow(AppSettings())
     val settings = _settings.asStateFlow()
 
+    // Ключ берется из секретов GitHub (BuildConfig)
     private val API_KEY = BuildConfig.GROQ_API_KEY
 
     init {
@@ -142,11 +143,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         val selectedPersona = AiPersona.valueOf(currentSettings.persona)
         
-        // ОБНОВЛЕННЫЙ ПРОМПТ: просим делать пробелы вокруг палочек в таблицах
+        // ОБНОВЛЕННЫЙ ПРОМПТ: просим нейросеть делать компактные таблицы (до 4 столбцов)
         var systemPrompt = "${selectedPersona.promptPrefix} " +
                 "ВАЖНО: Всегда используй Markdown для оформления текста. " +
                 "Если делаешь таблицу, ОБЯЗАТЕЛЬНО ставь пробелы вокруг палочек: '| Текст | Текст |'. " +
-                "Не используй сложные математические формулы LaTeX. "
+                "Не делай таблицы шире 4 столбцов! Если данных больше, напиши их обычным списком. " +
+                "Не используй сложные математические формулы LaTeX (пиши обычным текстом)."
                 
         if (userName != null) {
             systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
