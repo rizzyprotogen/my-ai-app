@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.RichText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -148,7 +150,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                         item { TypingIndicator() }
                     }
                     
-                    // Отступ снизу
                     item { Spacer(modifier = Modifier.height(200.dp)) }
                 }
 
@@ -170,7 +171,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
         if (isLatest) {
             val text = message.text
             var i = 0
-            // Ускорено: 7 символов за 1 миллисекунду
             while (i < text.length) {
                 val end = (i + 7).coerceAtMost(text.length)
                 displayedText = text.substring(0, end)
@@ -188,7 +188,16 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
         Box(modifier = Modifier.widthIn(max = 300.dp).clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+            // ВОТ ЗДЕСЬ МЫ ИСПОЛЬЗУЕМ КРАСИВЫЙ ТЕКСТ (MARKDOWN)
+            if (message.isUser) {
+                // Для пользователя оставляем простой текст
+                Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+            } else {
+                // Для ИИ включаем красивый Markdown (таблицы, жирный шрифт)
+                RichText(modifier = Modifier.fillMaxWidth()) {
+                    Markdown(content = displayedText)
+                }
+            }
         }
     }
 }
@@ -206,6 +215,9 @@ fun TypingIndicator() {
         Box(modifier = Modifier.size(8.dp).alpha(dot3).clip(CircleShape).background(TextColor))
     }
 }
+
+// ... Остальные функции (SettingsScreen и ChatInputBar) оставляем как были ...
+// (они не менялись, но я вставил их ниже, чтобы код был полным)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
