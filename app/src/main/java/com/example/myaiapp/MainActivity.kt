@@ -3,6 +3,7 @@ package com.example.myaiapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // Цветовая палитра
@@ -51,21 +54,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RizzyApp(chatViewModel: ChatViewModel = viewModel()) {
     var showSettings by remember { mutableStateOf(false) }
 
     if (showSettings) {
-        SettingsScreen(
-            chatViewModel = chatViewModel,
-            onBack = { showSettings = false }
-        )
+        SettingsScreen(chatViewModel = chatViewModel, onBack = { showSettings = false })
     } else {
-        ChatGptScreen(
-            chatViewModel = chatViewModel,
-            onOpenSettings = { showSettings = true }
-        )
+        ChatGptScreen(chatViewModel = chatViewModel, onOpenSettings = { showSettings = true })
     }
 }
 
@@ -93,20 +89,11 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = SidebarBackground,
-                modifier = Modifier.width(300.dp)
-            ) {
+            ModalDrawerSheet(drawerContainerColor = SidebarBackground, modifier = Modifier.width(300.dp)) {
                 Spacer(modifier = Modifier.height(16.dp))
-                // Кнопка нового чата в панели
                 Button(
-                    onClick = {
-                        chatViewModel.createNewChat()
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    onClick = { chatViewModel.createNewChat(); scope.launch { drawerState.close() } },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Новый чат")
@@ -114,38 +101,21 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                     Text("Новый чат", fontWeight = FontWeight.Bold)
                 }
 
-                // Список чатов
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(chats) { chat ->
                         ListItem(
-                            headlineContent = { 
-                                Text(
-                                    text = chat.title, 
-                                    color = TextColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                ) 
-                            },
-                            modifier = Modifier.clickable {
-                                chatViewModel.selectChat(chat.id)
-                                scope.launch { drawerState.close() }
-                            },
-                            colors = ListItemDefaults.colors(
-                                containerColor = if (chat.id == currentChatId) UserMessageBackground else Color.Transparent
-                            )
+                            headlineContent = { Text(chat.title, color = TextColor, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.clickable { chatViewModel.selectChat(chat.id); scope.launch { drawerState.close() } },
+                            colors = ListItemDefaults.colors(containerColor = if (chat.id == currentChatId) UserMessageBackground else Color.Transparent)
                         )
                     }
                 }
                 
                 Divider(color = UserMessageBackground)
-                // Кнопка настроек внизу панели
                 ListItem(
                     headlineContent = { Text("Настройки", color = TextColor) },
                     leadingContent = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextColor) },
-                    modifier = Modifier.clickable {
-                        onOpenSettings()
-                        scope.launch { drawerState.close() }
-                    },
+                    modifier = Modifier.clickable { onOpenSettings(); scope.launch { drawerState.close() } },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -155,70 +125,84 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        Text(
-                            text = currentChat?.title ?: "RizzyAI",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Меню", tint = TextColor)
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { chatViewModel.createNewChat() }) {
-                            Icon(Icons.Default.Add, contentDescription = "Новый чат", tint = TextColor)
-                        }
-                    },
+                    title = { Text(currentChat?.title ?: "RizzyAI", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextColor, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    navigationIcon = { IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, contentDescription = "Меню", tint = TextColor) } },
+                    actions = { IconButton(onClick = { chatViewModel.createNewChat() }) { Icon(Icons.Default.Add, contentDescription = "Новый чат", tint = TextColor) } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ChatGptBackground)
                 )
             },
             containerColor = ChatGptBackground
         ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
-                        MessageBubble(message)
+                        // ВОТ ЗДЕСЬ МАГИЯ: Передаем флаг isLoading, чтобы понять, когда включать анимацию
+                        AnimatedMessageBubble(
+                            message = message, 
+                            isLatestAndLoading = isLoading && message == messages.lastOrNull() && !message.isUser
+                        )
                     }
                     
-                    if (isLoading) {
-                        item {
-                            Text(
-                                text = "RizzyAI печатает...",
-                                color = HintColor,
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(start = 16.dp, top = 8.dp)
-                            )
-                        }
+                    // Прыгающие точки
+                    if (isLoading && (messages.lastOrNull()?.isUser == true)) {
+                        item { TypingIndicator() }
                     }
                 }
 
                 ChatInputBar(
                     text = inputText,
                     onTextChange = { inputText = it },
-                    onSend = {
-                        chatViewModel.sendMessage(inputText)
-                        inputText = ""
-                    }
+                    onSend = { chatViewModel.sendMessage(inputText); inputText = "" }
                 )
             }
         }
+    }
+}
+
+// Анимация появления текста (Печатная машинка)
+@Composable
+fun AnimatedMessageBubble(message: Message, isLatestAndLoading: Boolean) {
+    var displayedText by remember { mutableStateOf(if (isLatestAndLoading) "" else message.text) }
+
+    LaunchedEffect(message.text, isLatestAndLoading) {
+        if (isLatestAndLoading) {
+            // Анимация печати
+            for (i in 1..message.text.length) {
+                displayedText = message.text.substring(0, i)
+                delay(15) // Скорость печати
+            }
+        } else {
+            displayedText = message.text
+        }
+    }
+
+    val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
+    val bubbleColor = if (message.isUser) UserMessageBackground else BotMessageBackground
+    val shape = if (message.isUser) RoundedCornerShape(18.dp, 18.dp, 2.dp, 18.dp) else RoundedCornerShape(18.dp, 18.dp, 18.dp, 2.dp)
+
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
+        Box(modifier = Modifier.widthIn(max = 300.dp).clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+        }
+    }
+}
+
+// Прыгающие точки
+@Composable
+fun TypingIndicator() {
+    val transition = rememberInfiniteTransition(label = "typing")
+    val dot1 by transition.animateFloat(initialValue = 0.2f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(600, delayMillis = 0), RepeatMode.Reverse), label = "dot1")
+    val dot2 by transition.animateFloat(initialValue = 0.2f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(600, delayMillis = 200), RepeatMode.Reverse), label = "dot2")
+    val dot3 by transition.animateFloat(initialValue = 0.2f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(600, delayMillis = 400), RepeatMode.Reverse), label = "dot3")
+
+    Row(modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(modifier = Modifier.size(8.dp).alpha(dot1).clip(CircleShape).background(TextColor))
+        Box(modifier = Modifier.size(8.dp).alpha(dot2).clip(CircleShape).background(TextColor))
+        Box(modifier = Modifier.size(8.dp).alpha(dot3).clip(CircleShape).background(TextColor))
     }
 }
 
@@ -233,74 +217,42 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Настройки", color = TextColor) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextColor)
-                    }
-                },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TextColor) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = ChatGptBackground)
             )
         },
         containerColor = ChatGptBackground
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(padding).padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Модель ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = settings.selectedModel == "openai/gpt-oss-120b",
-                    onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-120b")) }
-                )
+                RadioButton(selected = settings.selectedModel == "openai/gpt-oss-120b", onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-120b")) })
                 Text("Умная (gpt-oss-120b)", color = TextColor)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = settings.selectedModel == "openai/gpt-oss-20b",
-                    onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-20b")) }
-                )
+                RadioButton(selected = settings.selectedModel == "openai/gpt-oss-20b", onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-20b")) })
                 Text("Быстрая (gpt-oss-20b)", color = TextColor)
             }
 
             Divider(color = UserMessageBackground)
 
             Text("Креативность (Температура): ${String.format("%.1f", settings.temperature)}", color = AccentGreen, fontWeight = FontWeight.Bold)
-            Slider(
-                value = settings.temperature,
-                onValueChange = { chatViewModel.updateSettings(settings.copy(temperature = it)) },
-                valueRange = 0f..1f
-            )
+            Slider(value = settings.temperature, onValueChange = { chatViewModel.updateSettings(settings.copy(temperature = it)) }, valueRange = 0f..1f)
 
             Divider(color = UserMessageBackground)
 
             Text("Характер ИИ (Системный промпт)", color = AccentGreen, fontWeight = FontWeight.Bold)
             OutlinedTextField(
                 value = promptText,
-                onValueChange = { 
-                    promptText = it
-                    chatViewModel.updateSettings(settings.copy(systemPrompt = it))
-                },
+                onValueChange = { promptText = it; chatViewModel.updateSettings(settings.copy(systemPrompt = it)) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextColor,
-                    unfocusedTextColor = TextColor,
-                    focusedBorderColor = AccentGreen,
-                    unfocusedBorderColor = HintColor
-                ),
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextColor, unfocusedTextColor = TextColor, focusedBorderColor = AccentGreen, unfocusedBorderColor = HintColor),
                 placeholder = { Text("Например: Отвечай дерзко...", color = HintColor) }
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Button(
-                onClick = { showClearDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Button(onClick = { showClearDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = DangerRed), modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Delete, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Очистить все чаты")
@@ -312,48 +264,9 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
                 onDismissRequest = { showClearDialog = false },
                 title = { Text("Очистить чаты?") },
                 text = { Text("Все ваши диалоги будут безвозвратно удалены.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        chatViewModel.clearAllChats()
-                        showClearDialog = false
-                        onBack()
-                    }) { Text("Удалить", color = DangerRed) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showClearDialog = false }) { Text("Отмена") }
-                },
+                confirmButton = { TextButton(onClick = { chatViewModel.clearAllChats(); showClearDialog = false; onBack() }) { Text("Удалить", color = DangerRed) } },
+                dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("Отмена") } },
                 containerColor = BotMessageBackground
-            )
-        }
-    }
-}
-
-@Composable
-fun MessageBubble(message: Message) {
-    val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
-    val bubbleColor = if (message.isUser) UserMessageBackground else BotMessageBackground
-    val shape = if (message.isUser) {
-        RoundedCornerShape(18.dp, 18.dp, 2.dp, 18.dp)
-    } else {
-        RoundedCornerShape(18.dp, 18.dp, 18.dp, 2.dp)
-    }
-
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = alignment
-    ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(shape)
-                .background(bubbleColor)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Text(
-                text = message.text,
-                color = TextColor,
-                fontSize = 15.sp,
-                lineHeight = 20.sp
             )
         }
     }
@@ -363,12 +276,7 @@ fun MessageBubble(message: Message) {
 fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
     Surface(color = ChatGptBackground, modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 12.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
-                .background(InputBarBackground)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(InputBarBackground).padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextField(
@@ -376,14 +284,9 @@ fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Uni
                 onValueChange = onTextChange,
                 placeholder = { Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp) },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = AccentGreen,
-                    focusedTextColor = TextColor,
-                    unfocusedTextColor = TextColor
+                    focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = AccentGreen, focusedTextColor = TextColor, unfocusedTextColor = TextColor
                 ),
                 modifier = Modifier.weight(1f)
             )
@@ -393,17 +296,9 @@ fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Uni
             IconButton(
                 onClick = onSend,
                 enabled = isSendEnabled,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(if (isSendEnabled) AccentGreen else Color(0xFF565869))
+                modifier = Modifier.size(38.dp).clip(CircleShape).background(if (isSendEnabled) AccentGreen else Color(0xFF565869))
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Отправить",
-                    tint = if (isSendEnabled) Color.White else Color(0xFF8E8EA0),
-                    modifier = Modifier.size(18.dp)
-                )
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = if (isSendEnabled) Color.White else Color(0xFF8E8EA0), modifier = Modifier.size(18.dp))
             }
         }
     }
