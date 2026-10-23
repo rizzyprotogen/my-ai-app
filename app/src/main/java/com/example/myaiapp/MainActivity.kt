@@ -7,12 +7,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -194,7 +192,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     val bubbleColor = if (message.isUser) UserMessageBackground else BotMessageBackground
     val shape = if (message.isUser) RoundedCornerShape(18.dp, 18.dp, 2.dp, 18.dp) else RoundedCornerShape(18.dp, 18.dp, 18.dp, 2.dp)
 
-    // Ширину ограничиваем только для пользователя, для ИИ даем fillMaxWidth
     val maxWidthModifier = if (message.isUser) Modifier.widthIn(max = 300.dp) else Modifier.fillMaxWidth()
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
@@ -212,21 +209,19 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
-                    // Оборачиваем в horizontalScroll ТОЛЬКО AndroidView, чтобы ездили только таблицы/код
-                    Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        AndroidView(
-                            factory = { ctx ->
-                                TextView(ctx).apply {
-                                    setTextColor(android.graphics.Color.parseColor("#ECECF1"))
-                                    textSize = 15f
-                                }
-                            },
-                            update = { textView ->
-                                markwon.setMarkdown(textView, displayedText)
-                            },
-                            modifier = Modifier.fillMaxWidth() // Текст занимает всю ширину
-                        )
-                    }
+                    AndroidView(
+                        factory = { ctx ->
+                            TextView(ctx).apply {
+                                setTextColor(android.graphics.Color.parseColor("#ECECF1"))
+                                textSize = 15f
+                                setHorizontallyScrolling(true)
+                            }
+                        },
+                        update = { textView ->
+                            markwon.setMarkdown(textView, displayedText)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
