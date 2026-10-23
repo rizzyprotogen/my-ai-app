@@ -80,7 +80,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Автопрокрутка
     LaunchedEffect(messages.size, isLoading) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -141,15 +140,16 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
-                        // Передаем флаг, что это последнее сообщение от ИИ
                         val isLatestAiMessage = message == messages.lastOrNull() && !message.isUser
                         AnimatedMessageBubble(message = message, isLatest = isLatestAiMessage)
                     }
                     
-                    // Прыгающие точки (пока идет загрузка)
                     if (isLoading) {
                         item { TypingIndicator() }
                     }
+                    
+                    // Отступ снизу
+                    item { Spacer(modifier = Modifier.height(200.dp)) }
                 }
 
                 ChatInputBar(
@@ -170,9 +170,9 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
         if (isLatest) {
             val text = message.text
             var i = 0
-            // Печатаем по 2 символа за 1 миллисекунду (очень быстро и плавно)
+            // Ускорено: 7 символов за 1 миллисекунду
             while (i < text.length) {
-                val end = (i + 2).coerceAtMost(text.length)
+                val end = (i + 7).coerceAtMost(text.length)
                 displayedText = text.substring(0, end)
                 i = end
                 delay(1) 
