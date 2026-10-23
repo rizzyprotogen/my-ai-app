@@ -183,7 +183,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 i = end
                 delay(1) 
             }
-            isPrinting = false // Печать закончена
+            isPrinting = false
         } else {
             displayedText = message.text
             isPrinting = false
@@ -194,7 +194,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     val bubbleColor = if (message.isUser) UserMessageBackground else BotMessageBackground
     val shape = if (message.isUser) RoundedCornerShape(18.dp, 18.dp, 2.dp, 18.dp) else RoundedCornerShape(18.dp, 18.dp, 18.dp, 2.dp)
 
-    // Для ИИ убираем жесткое ограничение по ширине, чтобы таблица могла быть шире
+    // Ширину ограничиваем только для пользователя, для ИИ даем fillMaxWidth
     val maxWidthModifier = if (message.isUser) Modifier.widthIn(max = 300.dp) else Modifier.fillMaxWidth()
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
@@ -209,11 +209,10 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                         .build() 
                 }
                 
-                // ЕСЛИ ТЕКСТ ЕЩЕ ПЕЧАТАЕТСЯ — ПОКАЗЫВАЕМ ПРОСТОЙ ТЕКСТ
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
-                    // ЕСЛИ ДОПЕЧАТАЛСЯ — ВКЛЮЧАЕМ MARKDOWN + ГОРИЗОНТАЛЬНУЮ ПРОКРУТКУ
+                    // Оборачиваем в horizontalScroll ТОЛЬКО AndroidView, чтобы ездили только таблицы/код
                     Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         AndroidView(
                             factory = { ctx ->
@@ -224,7 +223,8 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                             },
                             update = { textView ->
                                 markwon.setMarkdown(textView, displayedText)
-                            }
+                            },
+                            modifier = Modifier.fillMaxWidth() // Текст занимает всю ширину
                         )
                     }
                 }
