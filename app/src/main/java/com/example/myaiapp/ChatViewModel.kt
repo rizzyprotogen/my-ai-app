@@ -31,7 +31,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _settings = MutableStateFlow(AppSettings())
     val settings = _settings.asStateFlow()
 
-    // Ключ берется из секретов GitHub (BuildConfig)
     private val API_KEY = BuildConfig.GROQ_API_KEY
 
     init {
@@ -143,12 +142,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         val selectedPersona = AiPersona.valueOf(currentSettings.persona)
         
-        // ОБНОВЛЕННЫЙ ПРОМПТ: просим нейросеть делать компактные таблицы (до 4 столбцов)
+        // ПРОМПТ: Просим использовать HTML для таблиц, чтобы текст не ездил
         var systemPrompt = "${selectedPersona.promptPrefix} " +
-                "ВАЖНО: Всегда используй Markdown для оформления текста. " +
-                "Если делаешь таблицу, ОБЯЗАТЕЛЬНО ставь пробелы вокруг палочек: '| Текст | Текст |'. " +
-                "Не делай таблицы шире 4 столбцов! Если данных больше, напиши их обычным списком. " +
-                "Не используй сложные математические формулы LaTeX (пиши обычным текстом)."
+                "ВАЖНО: Обычный текст пиши просто, без лишних символов. " +
+                "Если нужно сделать таблицу, ОБЯЗАТЕЛЬНО используй HTML-теги: <table border='1' style='border-collapse: collapse;'><tr><th>Заголовок 1</th><th>Заголовок 2</th></tr><tr><td>Текст 1</td><td>Текст 2</td></tr></table>. " +
+                "Не используй палочки | для таблиц, только HTML. " +
+                "Не используй сложные математические формулы LaTeX."
                 
         if (userName != null) {
             systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
