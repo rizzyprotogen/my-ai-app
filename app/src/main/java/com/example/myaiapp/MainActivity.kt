@@ -82,6 +82,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    // Автопрокрутка
     LaunchedEffect(messages.size, isLoading) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -150,6 +151,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                         item { TypingIndicator() }
                     }
                     
+                    // ПУСТОЕ МЕСТО ВНИЗУ (чтобы можно было прокрутить выше)
                     item { Spacer(modifier = Modifier.height(200.dp)) }
                 }
 
@@ -171,6 +173,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
         if (isLatest) {
             val text = message.text
             var i = 0
+            // Печать по 7 символов за 1 мс (очень быстро)
             while (i < text.length) {
                 val end = (i + 7).coerceAtMost(text.length)
                 displayedText = text.substring(0, end)
@@ -188,12 +191,10 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
         Box(modifier = Modifier.widthIn(max = 300.dp).clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            // ВОТ ЗДЕСЬ МЫ ИСПОЛЬЗУЕМ КРАСИВЫЙ ТЕКСТ (MARKDOWN)
+            // Если сообщение от ИИ, используем RichText (Markdown) для таблиц и жирного шрифта
             if (message.isUser) {
-                // Для пользователя оставляем простой текст
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
-                // Для ИИ включаем красивый Markdown (таблицы, жирный шрифт)
                 RichText(modifier = Modifier.fillMaxWidth()) {
                     Markdown(content = displayedText)
                 }
@@ -216,15 +217,12 @@ fun TypingIndicator() {
     }
 }
 
-// ... Остальные функции (SettingsScreen и ChatInputBar) оставляем как были ...
-// (они не менялись, но я вставил их ниже, чтобы код был полным)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
     val settings by chatViewModel.settings.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
-    var promptText by remember { mutableStateOf(settings.systemPrompt) }
+    var expanded by remember { mutableStateOf(false) } // Для выпадающего списка
 
     Scaffold(
         topBar = {
@@ -254,14 +252,34 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
 
             Divider(color = UserMessageBackground)
 
-            Text("Характер ИИ (Системный промпт)", color = AccentGreen, fontWeight = FontWeight.Bold)
-            OutlinedTextField(
-                value = promptText,
-                onValueChange = { promptText = it; chatViewModel.updateSettings(settings.copy(systemPrompt = it)) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextColor, unfocusedTextColor = TextColor, focusedBorderColor = AccentGreen, unfocusedBorderColor = HintColor),
-                placeholder = { Text("Например: Отвечай дерзко...", color = HintColor) }
-            )
+            Text("Характер ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
+            
+            // Выпадающий список характеров
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextColor)
+                ) {
+                    val currentPersona = AiPersona.valueOf(settings.persona)
+                    Text(currentPersona.displayName)
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.background(BotMessageBackground)
+                ) {
+                    AiPersona.values().forEach { persona ->
+                        DropdownMenuItem(
+                            text = { Text(persona.displayName, color = TextColor) },
+                            onClick = {
+                                chatViewModel.updateSettings(settings.copy(persona = persona.name))
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
