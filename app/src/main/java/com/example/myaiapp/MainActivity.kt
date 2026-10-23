@@ -7,10 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -166,6 +168,42 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
+// Функция для разделения текста на обычный и таблицы
+fun splitTextByTables(text: String): List<Pair<String, Boolean>> {
+    val parts = mutableListOf<Pair<String, Boolean>>()
+    val lines = text.lines()
+    var currentText = StringBuilder()
+    var inTable = false
+
+    for (line in lines) {
+        val isTableLine = line.trim().startsWith("|")
+        
+        if (isTableLine && !inTable) {
+            // Началась таблица
+            if (currentText.isNotEmpty()) {
+                parts.add(Pair(currentText.toString(), false))
+                currentText.clear()
+            }
+            inTable = true
+        } else if (!isTableLine && inTable) {
+            // Таблица закончилась
+            if (currentText.isNotEmpty()) {
+                parts.add(Pair(currentText.toString(), true))
+                currentText.clear()
+            }
+            inTable = false
+        }
+        
+        currentText.append(line).append("\n")
+    }
+    
+    if (currentText.isNotEmpty()) {
+        parts.add(Pair(currentText.toString(), inTable))
+    }
+    
+    return parts
+}
+
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
@@ -191,7 +229,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
     val bubbleColor = if (message.isUser) UserMessageBackground else BotMessageBackground
     val shape = if (message.isUser) RoundedCornerShape(18.dp, 18.dp, 2.dp, 18.dp) else RoundedCornerShape(18.dp, 18.dp, 18.dp, 2.dp)
-
     val maxWidthModifier = if (message.isUser) Modifier.widthIn(max = 300.dp) else Modifier.fillMaxWidth()
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
@@ -199,33 +236,51 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
             if (message.isUser) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
-                val context = LocalContext.current
-                val markwon = remember { 
-                    Markwon.builder(context)
-                        .usePlugin(TablePlugin.create(context))
-                        .build() 
-                }
-                
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
-                    AndroidView(
-                        factory = { ctx ->
-                            TextView(ctx).apply {
-                                setTextColor(android.graphics.Color.parseColor("#ECECF1"))
-                                textSize = 15f
-                                setHorizontallyScrolling(true)
+                    // Разделяем текст на части (обычный текст и таблицы)
+                    val parts = remember(displayedText) { splitTextByTables(displayedText) }
+                    
+                    Column {
+                        parts.forEach { (partText, isTable) ->
+                            if (isTable) {
+                                // Если это таблица — оборачиваем в горизонтальную прокрутку
+                                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                    MarkdownRenderer(partText)
+                                }
+                            } else {
+                                // Если обычный текст — без прокрутки
+                                MarkdownRenderer(partText)
                             }
-                        },
-                        update = { textView ->
-                            markwon.setMarkdown(textView, displayedText)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+fun MarkdownRenderer(text: String) {
+    val context = LocalContext.current
+    val markwon = remember { 
+        Markwon.builder(context)
+            .usePlugin(TablePlugin.create(context))
+            .build() 
+    }
+    AndroidView(
+        factory = { ctx ->
+            TextView(ctx).apply {
+                setTextColor(android.graphics.Color.parseColor("#ECECF1"))
+                textSize = 15f
+            }
+        },
+        update = { textView ->
+            markwon.setMarkdown(textView, text)
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
