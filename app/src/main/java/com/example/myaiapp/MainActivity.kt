@@ -7,12 +7,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -200,33 +198,36 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
             if (message.isUser) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
-                val context = LocalContext.current
-                val markwon = remember { 
-                    Markwon.builder(context)
-                        .usePlugin(TablePlugin.create(context))
-                        .build() 
-                }
-                
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
-                    // Показываем обычный текст и таблицы. БЕЗ horizontalScroll, чтобы текст не ездил!
-                    AndroidView(
-                        factory = { ctx ->
-                            TextView(ctx).apply {
-                                setTextColor(android.graphics.Color.parseColor("#ECECF1"))
-                                textSize = 15f
-                            }
-                        },
-                        update = { textView ->
-                            markwon.setMarkdown(textView, displayedText)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    MarkdownRenderer(text = displayedText)
                 }
             }
         }
     }
+}
+
+@Composable
+fun MarkdownRenderer(text: String) {
+    val context = LocalContext.current
+    val markwon = remember { 
+        Markwon.builder(context)
+            .usePlugin(TablePlugin.create(context))
+            .build() 
+    }
+    AndroidView(
+        factory = { ctx ->
+            TextView(ctx).apply {
+                setTextColor(android.graphics.Color.parseColor("#ECECF1"))
+                textSize = 15f
+            }
+        },
+        update = { textView ->
+            markwon.setMarkdown(textView, text)
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
