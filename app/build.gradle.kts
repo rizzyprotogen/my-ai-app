@@ -7,7 +7,7 @@ android {
     namespace = "com.example.myaiapp"
     compileSdk = 34
 
-    // Вот эти две настройки нужны для Compose
+    // Вот эти две настройки нужны Compose
     buildFeatures {
         compose = true
         buildConfig = true
