@@ -5,9 +5,8 @@ plugins {
 
 android {
     namespace = "com.example.myaiapp"
-    compileSdk = 34
+    compileSdk = 35 // Обновили до 35
 
-    // Настройки для Compose и BuildConfig (где лежит ключ)
     buildFeatures {
         compose = true
         buildConfig = true
@@ -24,7 +23,6 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Передача ключа из GitHub Secrets
         buildConfigField("String", "GROQ_API_KEY", "\"${System.getenv("GROQ_API_KEY") ?: ""}\"")
     }
 
@@ -55,6 +53,5 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20231013")
 
-    // Библиотека для красивого текста (Markdown)
     implementation("com.halilibo.compose-richtext:richtext-commonmark:1.0.0-alpha03")
 }
