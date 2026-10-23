@@ -164,19 +164,18 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
 
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
-    // Если это последнее сообщение от ИИ, запускаем печать
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
 
     LaunchedEffect(message.id) {
         if (isLatest) {
-            // Адаптивная скорость: делим длину на 30, получаем задержку в мс.
-            // Для 100 символов: 100/30 = 3 мс (быстро). Для 1000: 1000/30 = 33 мс.
-            // Ограничиваем от 5 до 100 мс, чтобы не было слишком быстро/медленно.
-            val speedMs = (message.text.length / 30).coerceIn(5, 100)
-            
-            for (i in 1..message.text.length) {
-                displayedText = message.text.substring(0, i)
-                delay(speedMs.toLong())
+            val text = message.text
+            var i = 0
+            // Печатаем по 2 символа за 1 миллисекунду (очень быстро и плавно)
+            while (i < text.length) {
+                val end = (i + 2).coerceAtMost(text.length)
+                displayedText = text.substring(0, end)
+                i = end
+                delay(1) 
             }
         } else {
             displayedText = message.text
@@ -207,8 +206,6 @@ fun TypingIndicator() {
         Box(modifier = Modifier.size(8.dp).alpha(dot3).clip(CircleShape).background(TextColor))
     }
 }
-
-// ... Код SettingsScreen, ChatInputBar остается без изменений ...
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
