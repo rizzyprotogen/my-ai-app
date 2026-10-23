@@ -7,10 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -169,6 +171,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
+    var isPrinting by remember { mutableStateOf(isLatest) }
 
     LaunchedEffect(message.id) {
         if (isLatest) {
@@ -180,8 +183,10 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 i = end
                 delay(1) 
             }
+            isPrinting = false // Печать закончена
         } else {
             displayedText = message.text
+            isPrinting = false
         }
     }
 
@@ -189,31 +194,40 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     val bubbleColor = if (message.isUser) UserMessageBackground else BotMessageBackground
     val shape = if (message.isUser) RoundedCornerShape(18.dp, 18.dp, 2.dp, 18.dp) else RoundedCornerShape(18.dp, 18.dp, 18.dp, 2.dp)
 
+    // Для ИИ убираем жесткое ограничение по ширине, чтобы таблица могла быть шире
+    val maxWidthModifier = if (message.isUser) Modifier.widthIn(max = 300.dp) else Modifier.fillMaxWidth()
+
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
-        Box(modifier = Modifier.widthIn(max = 300.dp).clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Box(modifier = maxWidthModifier.clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
             if (message.isUser) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
                 val context = LocalContext.current
-                // ВОТ ЗДЕСЬ ПОДКЛЮЧЕН ПЛАГИН ТАБЛИЦ
                 val markwon = remember { 
                     Markwon.builder(context)
                         .usePlugin(TablePlugin.create(context))
                         .build() 
                 }
                 
-                AndroidView(
-                    factory = { ctx ->
-                        TextView(ctx).apply {
-                            setTextColor(android.graphics.Color.parseColor("#ECECF1"))
-                            textSize = 15f
-                        }
-                    },
-                    update = { textView ->
-                        markwon.setMarkdown(textView, displayedText)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // ЕСЛИ ТЕКСТ ЕЩЕ ПЕЧАТАЕТСЯ — ПОКАЗЫВАЕМ ПРОСТОЙ ТЕКСТ
+                if (isPrinting) {
+                    Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+                } else {
+                    // ЕСЛИ ДОПЕЧАТАЛСЯ — ВКЛЮЧАЕМ MARKDOWN + ГОРИЗОНТАЛЬНУЮ ПРОКРУТКУ
+                    Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                        AndroidView(
+                            factory = { ctx ->
+                                TextView(ctx).apply {
+                                    setTextColor(android.graphics.Color.parseColor("#ECECF1"))
+                                    textSize = 15f
+                                }
+                            },
+                            update = { textView ->
+                                markwon.setMarkdown(textView, displayedText)
+                            }
+                        )
+                    }
+                }
             }
         }
     }
