@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.myaiapp"
-    compileSdk = 35 // Обновили до 35
+    compileSdk = 35
 
     buildFeatures {
         compose = true
@@ -52,6 +52,4 @@ dependencies {
     
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20231013")
-
-    implementation("com.halilibo.compose-richtext:richtext-commonmark:1.0.0-alpha03")
 }
