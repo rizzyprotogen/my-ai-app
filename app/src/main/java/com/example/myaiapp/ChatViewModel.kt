@@ -31,7 +31,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _settings = MutableStateFlow(AppSettings())
     val settings = _settings.asStateFlow()
 
-    // Ключ берется из секретов GitHub (BuildConfig)
     private val API_KEY = BuildConfig.GROQ_API_KEY
 
     init {
@@ -141,14 +140,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val userName = memoryManager.getUserName()
         val currentSettings = _settings.value
         
-        // 1. Берем выбранный характер
         val selectedPersona = AiPersona.valueOf(currentSettings.persona)
         
-        // 2. Собираем финальный промпт: Характер + Жесткие правила оформления + Имя
+        // ПРОМПТ: просим использовать Markdown для таблиц и жирного шрифта
         var systemPrompt = "${selectedPersona.promptPrefix} " +
-                "ВАЖНО: Всегда используй Markdown для оформления текста (жирный шрифт, списки). " +
-                "Если делаешь таблицу, делай её узкой, чтобы она влезала на экран телефона. " +
-                "Не используй сложные математические формулы LaTeX (пиши обычным текстом)."
+                "ВАЖНО: Всегда используй Markdown для оформления текста (жирный шрифт, списки, таблицы). " +
+                "Не используй сложные математические формулы LaTeX."
                 
         if (userName != null) {
             systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
