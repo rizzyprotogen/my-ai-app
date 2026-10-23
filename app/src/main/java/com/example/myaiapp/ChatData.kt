@@ -6,7 +6,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-// Модель одного сообщения
 data class Message(
     val id: String = UUID.randomUUID().toString(),
     val text: String,
@@ -14,52 +13,47 @@ data class Message(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-// Модель целого чата (сессии)
 data class ChatSession(
     val id: String = UUID.randomUUID().toString(),
     var title: String = "Новый чат",
     var messages: List<Message> = emptyList()
 )
 
-// Модель настроек
+// Характеры ИИ
+enum class AiPersona(val displayName: String, val promptPrefix: String) {
+    NORMAL("Обычный", "Ты - RizzyAI, дружелюбный и умный ИИ-помощник. Отвечай понятно."),
+    SARCASTIC("Дерзкий", "Ты - RizzyAI. Отвечай с сарказмом, дерзко, но по делу."),
+    PIRATE("Пират", "Ты - RizzyAI. Отвечай как старый пират: 'Йо-хо-хо', 'Тысяча чертей'."),
+    CODER("Программист", "Ты - RizzyAI, эксперт по коду. Отвечай технически грамотно, используй примеры кода.")
+}
+
 data class AppSettings(
-    val selectedModel: String = "openai/gpt-oss-120b", // По умолчанию умная
+    val selectedModel: String = "openai/gpt-oss-120b",
     val temperature: Float = 0.7f,
-    val systemPrompt: String = "Ты - RizzyAI, дружелюбный и умный ИИ-помощник."
+    val persona: String = "NORMAL" // Храним название характера (enum)
 )
 
-// Хранилище всех чатов и настроек
 class MemoryManager(context: Context) {
     private val prefs: SharedPreferences = 
         context.getSharedPreferences("rizzy_ai_prefs", Context.MODE_PRIVATE)
 
-    // --- 1. Управление именем пользователя ---
-    fun saveUserName(name: String) {
-        prefs.edit().putString(KEY_USER_NAME, name).apply()
-    }
+    fun saveUserName(name: String) { prefs.edit().putString(KEY_USER_NAME, name).apply() }
+    fun getUserName(): String? = prefs.getString(KEY_USER_NAME, null)
 
-    fun getUserName(): String? {
-        return prefs.getString(KEY_USER_NAME, null)
-    }
-
-    // --- 2. Управление списком чатов ---
     fun saveChats(chats: List<ChatSession>) {
         val jsonArray = JSONArray()
         chats.forEach { chat ->
-            val chatObj = JSONObject()
-            chatObj.put("id", chat.id)
-            chatObj.put("title", chat.title)
-            
-            val msgArray = JSONArray()
-            chat.messages.forEach { msg ->
-                val msgObj = JSONObject()
-                msgObj.put("id", msg.id)
-                msgObj.put("text", msg.text)
-                msgObj.put("isUser", msg.isUser)
-                msgObj.put("timestamp", msg.timestamp)
-                msgArray.put(msgObj)
+            val chatObj = JSONObject().apply {
+                put("id", chat.id)
+                put("title", chat.title)
+                val msgArray = JSONArray()
+                chat.messages.forEach { msg ->
+                    msgArray.put(JSONObject().apply {
+                        put("id", msg.id); put("text", msg.text); put("isUser", msg.isUser); put("timestamp", msg.timestamp)
+                    })
+                }
+                put("messages", msgArray)
             }
-            chatObj.put("messages", msgArray)
             jsonArray.put(chatObj)
         }
         prefs.edit().putString(KEY_CHATS, jsonArray.toString()).apply()
@@ -68,41 +62,27 @@ class MemoryManager(context: Context) {
     fun loadChats(): List<ChatSession> {
         val jsonString = prefs.getString(KEY_CHATS, null) ?: return emptyList()
         val chats = mutableListOf<ChatSession>()
-        
         try {
             val jsonArray = JSONArray(jsonString)
             for (i in 0 until jsonArray.length()) {
                 val chatObj = jsonArray.getJSONObject(i)
-                val id = chatObj.getString("id")
-                val title = chatObj.getString("title")
-                
                 val msgArray = chatObj.getJSONArray("messages")
                 val messages = mutableListOf<Message>()
                 for (j in 0 until msgArray.length()) {
                     val msgObj = msgArray.getJSONObject(j)
-                    messages.add(
-                        Message(
-                            id = msgObj.getString("id"),
-                            text = msgObj.getString("text"),
-                            isUser = msgObj.getBoolean("isUser"),
-                            timestamp = msgObj.getLong("timestamp")
-                        )
-                    )
+                    messages.add(Message(msgObj.getString("id"), msgObj.getString("text"), msgObj.getBoolean("isUser"), msgObj.getLong("timestamp")))
                 }
-                chats.add(ChatSession(id, title, messages))
+                chats.add(ChatSession(chatObj.getString("id"), chatObj.getString("title"), messages))
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
         return chats
     }
 
-    // --- 3. Управление настройками ---
     fun saveSettings(settings: AppSettings) {
         prefs.edit()
             .putString(KEY_MODEL, settings.selectedModel)
             .putFloat(KEY_TEMPERATURE, settings.temperature)
-            .putString(KEY_SYSTEM_PROMPT, settings.systemPrompt)
+            .putString(KEY_PERSONA, settings.persona)
             .apply()
     }
 
@@ -110,20 +90,17 @@ class MemoryManager(context: Context) {
         return AppSettings(
             selectedModel = prefs.getString(KEY_MODEL, "openai/gpt-oss-120b") ?: "openai/gpt-oss-120b",
             temperature = prefs.getFloat(KEY_TEMPERATURE, 0.7f),
-            systemPrompt = prefs.getString(KEY_SYSTEM_PROMPT, "Ты - RizzyAI, дружелюбный и умный ИИ-помощник.") ?: "Ты - RizzyAI, дружелюбный и умный ИИ-помощник."
+            persona = prefs.getString(KEY_PERSONA, "NORMAL") ?: "NORMAL"
         )
     }
 
-    // --- 4. Очистка всех чатов ---
-    fun clearAllChats() {
-        prefs.edit().remove(KEY_CHATS).apply()
-    }
+    fun clearAllChats() { prefs.edit().remove(KEY_CHATS).apply() }
 
     companion object {
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_CHATS = "all_chats"
         private const val KEY_MODEL = "selected_model"
         private const val KEY_TEMPERATURE = "temperature"
-        private const val KEY_SYSTEM_PROMPT = "system_prompt"
+        private const val KEY_PERSONA = "persona"
     }
 }
