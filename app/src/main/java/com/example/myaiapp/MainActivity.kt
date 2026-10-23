@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -193,9 +194,13 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
             if (message.isUser) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
-                // Используем Markwon для красивого отображения таблиц и жирного шрифта
                 val context = LocalContext.current
-                val markwon = remember { Markwon.builder(context).build() }
+                // ВОТ ЗДЕСЬ ПОДКЛЮЧЕН ПЛАГИН ТАБЛИЦ
+                val markwon = remember { 
+                    Markwon.builder(context)
+                        .usePlugin(TablePlugin.create(context))
+                        .build() 
+                }
                 
                 AndroidView(
                     factory = { ctx ->
