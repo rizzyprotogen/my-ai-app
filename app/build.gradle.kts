@@ -7,9 +7,14 @@ android {
     namespace = "com.example.myaiapp"
     compileSdk = 34
 
-    // Включаем BuildConfig, чтобы использовать ключ
+    // Вот эти две настройки нужны для Compose
     buildFeatures {
+        compose = true
         buildConfig = true
+    }
+    
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 
     defaultConfig {
@@ -19,7 +24,6 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Передаем ключ из GitHub Secrets в приложение
         buildConfigField("String", "GROQ_API_KEY", "\"${System.getenv("GROQ_API_KEY") ?: ""}\"")
     }
 
