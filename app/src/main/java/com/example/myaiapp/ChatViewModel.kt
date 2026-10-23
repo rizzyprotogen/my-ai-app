@@ -31,7 +31,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _settings = MutableStateFlow(AppSettings())
     val settings = _settings.asStateFlow()
 
-    // Ключ будет взят из GitHub Secrets при сборке
+    // Ключ берется из секретов GitHub (BuildConfig)
     private val API_KEY = BuildConfig.GROQ_API_KEY
 
     init {
@@ -141,9 +141,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val userName = memoryManager.getUserName()
         val currentSettings = _settings.value
         
-        var systemPrompt = currentSettings.systemPrompt
+        // 1. Берем выбранный характер
+        val selectedPersona = AiPersona.valueOf(currentSettings.persona)
+        
+        // 2. Собираем финальный промпт: Характер + Жесткие правила оформления + Имя
+        var systemPrompt = "${selectedPersona.promptPrefix} " +
+                "ВАЖНО: Всегда используй Markdown для оформления текста (жирный шрифт, списки). " +
+                "Если делаешь таблицу, делай её узкой, чтобы она влезала на экран телефона. " +
+                "Не используй сложные математические формулы LaTeX (пиши обычным текстом)."
+                
         if (userName != null) {
-            systemPrompt += " Пользователя зовут $userName."
+            systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
         }
 
         val messagesArray = org.json.JSONArray()
