@@ -142,10 +142,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         val selectedPersona = AiPersona.valueOf(currentSettings.persona)
         
-        // ПРОМПТ: просим использовать Markdown для таблиц и жирного шрифта
+        // ОБНОВЛЕННЫЙ ПРОМПТ: просим делать пробелы вокруг палочек в таблицах
         var systemPrompt = "${selectedPersona.promptPrefix} " +
-                "ВАЖНО: Всегда используй Markdown для оформления текста (жирный шрифт, списки, таблицы). " +
-                "Не используй сложные математические формулы LaTeX."
+                "ВАЖНО: Всегда используй Markdown для оформления текста. " +
+                "Если делаешь таблицу, ОБЯЗАТЕЛЬНО ставь пробелы вокруг палочек: '| Текст | Текст |'. " +
+                "Не используй сложные математические формулы LaTeX. "
                 
         if (userName != null) {
             systemPrompt += " Пользователя зовут $userName. Обращайся к нему по имени."
