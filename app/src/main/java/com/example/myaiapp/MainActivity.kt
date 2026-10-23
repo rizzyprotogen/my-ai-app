@@ -1,6 +1,7 @@
 package com.example.myaiapp
 
 import android.os.Bundle
+import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
@@ -26,11 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.noties.markwon.Markwon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -161,16 +165,6 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
-// Функция очистки текста от Markdown
-fun cleanMarkdown(text: String): String {
-    return text
-        .replace("**", "")
-        .replace("\\text{", "")
-        .replace("\\", "")
-        .replace("{", "")
-        .replace("}", "")
-}
-
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
@@ -196,7 +190,26 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
         Box(modifier = Modifier.widthIn(max = 300.dp).clip(shape).background(bubbleColor).padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(text = cleanMarkdown(displayedText), color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+            if (message.isUser) {
+                Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+            } else {
+                // Используем Markwon для красивого отображения таблиц и жирного шрифта
+                val context = LocalContext.current
+                val markwon = remember { Markwon.builder(context).build() }
+                
+                AndroidView(
+                    factory = { ctx ->
+                        TextView(ctx).apply {
+                            setTextColor(android.graphics.Color.parseColor("#ECECF1"))
+                            textSize = 15f
+                        }
+                    },
+                    update = { textView ->
+                        markwon.setMarkdown(textView, displayedText)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
