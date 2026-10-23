@@ -80,6 +80,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    // Автопрокрутка
     LaunchedEffect(messages.size, isLoading) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -140,15 +141,13 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
-                        // ВОТ ЗДЕСЬ МАГИЯ: Передаем флаг isLoading, чтобы понять, когда включать анимацию
-                        AnimatedMessageBubble(
-                            message = message, 
-                            isLatestAndLoading = isLoading && message == messages.lastOrNull() && !message.isUser
-                        )
+                        // Передаем флаг, что это последнее сообщение от ИИ
+                        val isLatestAiMessage = message == messages.lastOrNull() && !message.isUser
+                        AnimatedMessageBubble(message = message, isLatest = isLatestAiMessage)
                     }
                     
-                    // Прыгающие точки
-                    if (isLoading && (messages.lastOrNull()?.isUser == true)) {
+                    // Прыгающие точки (пока идет загрузка)
+                    if (isLoading) {
                         item { TypingIndicator() }
                     }
                 }
@@ -163,17 +162,21 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
-// Анимация появления текста (Печатная машинка)
 @Composable
-fun AnimatedMessageBubble(message: Message, isLatestAndLoading: Boolean) {
-    var displayedText by remember { mutableStateOf(if (isLatestAndLoading) "" else message.text) }
+fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
+    // Если это последнее сообщение от ИИ, запускаем печать
+    var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
 
-    LaunchedEffect(message.text, isLatestAndLoading) {
-        if (isLatestAndLoading) {
-            // Анимация печати
+    LaunchedEffect(message.id) {
+        if (isLatest) {
+            // Адаптивная скорость: делим длину на 30, получаем задержку в мс.
+            // Для 100 символов: 100/30 = 3 мс (быстро). Для 1000: 1000/30 = 33 мс.
+            // Ограничиваем от 5 до 100 мс, чтобы не было слишком быстро/медленно.
+            val speedMs = (message.text.length / 30).coerceIn(5, 100)
+            
             for (i in 1..message.text.length) {
                 displayedText = message.text.substring(0, i)
-                delay(15) // Скорость печати
+                delay(speedMs.toLong())
             }
         } else {
             displayedText = message.text
@@ -191,7 +194,6 @@ fun AnimatedMessageBubble(message: Message, isLatestAndLoading: Boolean) {
     }
 }
 
-// Прыгающие точки
 @Composable
 fun TypingIndicator() {
     val transition = rememberInfiniteTransition(label = "typing")
@@ -205,6 +207,8 @@ fun TypingIndicator() {
         Box(modifier = Modifier.size(8.dp).alpha(dot3).clip(CircleShape).background(TextColor))
     }
 }
+
+// ... Код SettingsScreen, ChatInputBar остается без изменений ...
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
