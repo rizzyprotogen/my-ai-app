@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -169,7 +170,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
-// ПАРСЕР: Ищем и текст, и код (с языком и без)
+// ПАРСЕР
 sealed class MessagePart {
     data class TextPart(val text: String) : MessagePart()
     data class CodePart(val code: String) : MessagePart()
@@ -178,23 +179,18 @@ sealed class MessagePart {
 
 fun parseMessage(text: String): List<MessagePart> {
     val parts = mutableListOf<MessagePart>()
-    // Ищем блоки кода: ```язык ... ``` или ``` ... ```
     val codeRegex = Regex("```(?:[a-zA-Z0-9]+)?\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
     
     var lastIndex = 0
     codeRegex.findAll(text).forEach { match ->
-        // Текст перед кодом
         if (match.range.first > lastIndex) {
             val textBefore = text.substring(lastIndex, match.range.first)
             parts.addAll(parseTables(textBefore))
         }
-        // Сам код
         parts.add(MessagePart.CodePart(match.groupValues[1].trim()))
-        
         lastIndex = match.range.last + 1
     }
     
-    // Остаток текста
     if (lastIndex < text.length) {
         val textAfter = text.substring(lastIndex)
         parts.addAll(parseTables(textAfter))
@@ -207,7 +203,6 @@ fun parseMessage(text: String): List<MessagePart> {
     return parts
 }
 
-// Вспомогательная функция для поиска таблиц
 fun parseTables(text: String): List<MessagePart> {
     val parts = mutableListOf<MessagePart>()
     val lines = text.lines()
@@ -288,7 +283,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     MarkdownRenderer(text = part.text)
                                 }
                                 is MessagePart.CodePart -> {
-                                    // Блок кода с горизонтальной прокруткой
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -306,7 +300,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     }
                                 }
                                 is MessagePart.TablePart -> {
-                                    // Таблица с горизонтальной прокруткой
                                     Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                                         MarkdownRenderer(text = part.table)
                                     }
@@ -323,8 +316,11 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 @Composable
 fun MarkdownRenderer(text: String) {
     val context = LocalContext.current
+    // ВОТ ЗДЕСЬ МЫ ВЕРНУЛИ ПЛАГИН ТАБЛИЦ
     val markwon = remember { 
-        Markwon.builder(context).build() 
+        Markwon.builder(context)
+            .usePlugin(TablePlugin.create(context))
+            .build() 
     }
     AndroidView(
         factory = { ctx ->
