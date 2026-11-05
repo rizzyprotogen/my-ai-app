@@ -265,11 +265,9 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                         parts.forEach { part ->
                             when (part) {
                                 is MessagePart.TextPart -> {
-                                    // Обычный текст (без прокрутки)
                                     MarkdownRenderer(text = part.text)
                                 }
                                 is MessagePart.CodePart -> {
-                                    // Код (с горизонтальной прокруткой)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -287,7 +285,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     }
                                 }
                                 is MessagePart.TablePart -> {
-                                    // Таблица (с горизонтальной прокруткой)
                                     Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                                         MarkdownRenderer(text = part.table)
                                     }
@@ -437,4 +434,11 @@ fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Uni
                     cursorColor = AccentGreen, focusedTextColor = TextColor, unfocusedTextColor = TextColor
                 ),
                 modifier = Modifier.weight(1f)
-        
+            )
+
+            val isSendEnabled = text.trim().isNotEmpty()
+
+            IconButton(
+                onClick = onSend,
+                enabled = isSendEnabled,
+                modifier = Modifier.size(38.dp).clip(Ci
