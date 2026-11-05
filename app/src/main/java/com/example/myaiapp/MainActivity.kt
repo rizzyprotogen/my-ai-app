@@ -301,7 +301,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                 }
                                 is MessagePart.TablePart -> {
                                     Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                                        // Передаем isTable = true, чтобы задать огромную ширину
+                                        // Передаем isTable = true
                                         MarkdownRenderer(text = part.table, isTable = true)
                                     }
                                 }
@@ -317,11 +317,22 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 @Composable
 fun MarkdownRenderer(text: String, isTable: Boolean) {
     val context = LocalContext.current
+    
+    // НАСТРОЙКА ТАБЛИЦ: Заставляем Markwon подстраивать ширину столбцов под текст, 
+    // чтобы слова не ломались по буквам.
+    val tablePlugin = TablePlugin.create { builder ->
+        builder
+            .tableCellPadding(8)
+            .tableBorderWidth(1)
+            .tableBorderColor(android.graphics.Color.parseColor("#555555"))
+    }
+
     val markwon = remember { 
         Markwon.builder(context)
-            .usePlugin(TablePlugin.create(context))
+            .usePlugin(tablePlugin)
             .build() 
     }
+    
     AndroidView(
         factory = { ctx ->
             TextView(ctx).apply {
@@ -331,9 +342,18 @@ fun MarkdownRenderer(text: String, isTable: Boolean) {
         },
         update = { textView ->
             markwon.setMarkdown(textView, text)
+            // Если это таблица, даем ей "естественную" ширину, чтобы она не сжималась и не рвала слова
+            if (isTable) {
+                textView.measure(
+                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+                )
+                textView.layout(0, 0, textView.measuredWidth, textView.measuredHeight)
+            }
         },
-        // ЕСЛИ ЭТО ТАБЛИЦА, ДАЕМ ЕЙ ШИРИНУ 2000dp, ЧТОБЫ ОНА НЕ СЖИМАЛАСЬ
-        modifier = if (isTable) Modifier.width(2000.dp) else Modifier.fillMaxWidth()
+        // Если таблица — делаем wrapContent, чтобы она была по размеру текста. 
+        // Если текст — fillMaxWidth.
+        modifier = if (isTable) Modifier.wrapContentWidth() else Modifier.fillMaxWidth()
     )
 }
 
