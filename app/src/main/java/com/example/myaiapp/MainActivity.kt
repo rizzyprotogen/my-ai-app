@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.noties.markwon.Markwon
-import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -48,7 +47,7 @@ val SidebarBackground = Color(0xFF1E1E1E)
 val BotMessageBackground = Color(0xFF343541)
 val UserMessageBackground = Color(0xFF444654)
 val InputBarBackground = Color(0xFF40414F)
-val CodeBackground = Color(0xFF1E1E1E) // Фон для кода
+val CodeBackground = Color(0xFF1E1E1E)
 val AccentGreen = Color(0xFF10A37F)
 val TextColor = Color(0xFFECECF1)
 val HintColor = Color(0xFF8E8EA0)
@@ -170,34 +169,59 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
-// Парсер текста: разделяет обычный текст и код
-fun parseMessage(text: String): List<Pair<String, Boolean>> {
-    val parts = mutableListOf<Pair<String, Boolean>>()
-    val regex = Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL)
-    var lastIndex = 0
+// ПАРСЕР: Разбивает текст на части (Текст, Код, Таблица)
+sealed class MessagePart {
+    data class TextPart(val text: String) : MessagePart()
+    data class CodePart(val code: String) : MessagePart()
+    data class TablePart(val table: String) : MessagePart()
+}
 
-    regex.findAll(text).forEach { matchResult ->
-        // Текст перед кодом
-        if (matchResult.range.first > lastIndex) {
-            parts.add(Pair(text.substring(lastIndex, matchResult.range.first), false))
-        }
-        // Сам код
-        val codeText = matchResult.groupValues[1].trim()
-        parts.add(Pair(codeText, true))
+fun parseMessage(text: String): List<MessagePart> {
+    val parts = mutableListOf<MessagePart>()
+    val lines = text.lines()
+    var currentBlock = StringBuilder()
+    var currentType = "text" // text, code, table
+
+    fun flushBlock() {
+        if (currentBlock.isEmpty()) return
+        val blockText = currentBlock.toString().trim()
+        if (blockText.isEmpty()) return
         
-        lastIndex = matchResult.range.last + 1
+        when (currentType) {
+            "text" -> parts.add(MessagePart.TextPart(blockText))
+            "code" -> parts.add(MessagePart.CodePart(blockText))
+            "table" -> parts.add(MessagePart.TablePart(blockText))
+        }
+        currentBlock.clear()
     }
 
-    // Остаток текста после последнего кода
-    if (lastIndex < text.length) {
-        parts.add(Pair(text.substring(lastIndex), false))
+    for (line in lines) {
+        val trimmed = line.trim()
+        var newType = "text"
+        
+        if (trimmed.startsWith("```")) {
+            newType = "code"
+        } else if (trimmed.startsWith("|")) {
+            newType = "table"
+        }
+
+        if (newType != currentType) {
+            flushBlock()
+            currentType = newType
+        }
+        
+        // Не добавляем сами ``` в код
+        if (currentType == "code" && trimmed.startsWith("```")) {
+            continue 
+        }
+        
+        currentBlock.append(line).append("\n")
     }
-    
-    // Если кода вообще не было
+    flushBlock()
+
     if (parts.isEmpty()) {
-        parts.add(Pair(text, false))
+        parts.add(MessagePart.TextPart(text))
     }
-
     return parts
 }
 
@@ -238,27 +262,36 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 } else {
                     val parts = remember(displayedText) { parseMessage(displayedText) }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        parts.forEach { (text, isCode) ->
-                            if (isCode) {
-                                // Блок кода (с горизонтальной прокруткой)
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(CodeBackground)
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(12.dp)
-                                ) {
-                                    Text(
-                                        text = text,
-                                        color = Color(0xFFA9B7C6),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 14.sp
-                                    )
+                        parts.forEach { part ->
+                            when (part) {
+                                is MessagePart.TextPart -> {
+                                    // Обычный текст (без прокрутки)
+                                    MarkdownRenderer(text = part.text)
                                 }
-                            } else {
-                                // Обычный текст (без прокрутки)
-                                MarkdownRenderer(text = text)
+                                is MessagePart.CodePart -> {
+                                    // Код (с горизонтальной прокруткой)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(CodeBackground)
+                                            .horizontalScroll(rememberScrollState())
+                                            .padding(12.dp)
+                                    ) {
+                                        Text(
+                                            text = part.code,
+                                            color = Color(0xFFA9B7C6),
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                                is MessagePart.TablePart -> {
+                                    // Таблица (с горизонтальной прокруткой)
+                                    Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                        MarkdownRenderer(text = part.table)
+                                    }
+                                }
                             }
                         }
                     }
@@ -272,9 +305,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 fun MarkdownRenderer(text: String) {
     val context = LocalContext.current
     val markwon = remember { 
-        Markwon.builder(context)
-            .usePlugin(TablePlugin.create(context))
-            .build() 
+        Markwon.builder(context).build() 
     }
     AndroidView(
         factory = { ctx ->
@@ -406,17 +437,4 @@ fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Uni
                     cursorColor = AccentGreen, focusedTextColor = TextColor, unfocusedTextColor = TextColor
                 ),
                 modifier = Modifier.weight(1f)
-            )
-
-            val isSendEnabled = text.trim().isNotEmpty()
-
-            IconButton(
-                onClick = onSend,
-                enabled = isSendEnabled,
-                modifier = Modifier.size(38.dp).clip(CircleShape).background(if (isSendEnabled) AccentGreen else Color(0xFF565869))
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = if (isSendEnabled) Color.White else Color(0xFF8E8EA0), modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
+        
