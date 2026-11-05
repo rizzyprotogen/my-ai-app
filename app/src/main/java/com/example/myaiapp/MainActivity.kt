@@ -349,7 +349,6 @@ fun ComposeTableRenderer(tableMarkdown: String) {
 
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Горизонтальная прокрутка для таблицы
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -359,7 +358,6 @@ fun ComposeTableRenderer(tableMarkdown: String) {
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
-                // Таблица сжимается по контенту, но не меньше экрана
                 .width(IntrinsicSize.Max)
         ) {
             rows.forEachIndexed { rowIndex, row ->
@@ -370,9 +368,8 @@ fun ComposeTableRenderer(tableMarkdown: String) {
                         
                         Box(
                             modifier = Modifier
-                                // Минимальная ширина 80dp, чтобы слова не ломались
-                                .widthIn(min = 80.dp)
-                                .width(IntrinsicSize.Max)
+                                // Ограничиваем максимальную ширину ячейки, чтобы текст переносился по словам
+                                .widthIn(min = 80.dp, max = 200.dp)
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
@@ -383,7 +380,8 @@ fun ComposeTableRenderer(tableMarkdown: String) {
                                 text = cellText,
                                 color = TextColor,
                                 fontSize = 14.sp,
-                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
+                                softWrap = true
                             )
                         }
                     }
