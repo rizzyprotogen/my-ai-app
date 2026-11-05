@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -38,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.noties.markwon.Markwon
-import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -49,6 +49,7 @@ val BotMessageBackground = Color(0xFF343541)
 val UserMessageBackground = Color(0xFF444654)
 val InputBarBackground = Color(0xFF40414F)
 val CodeBackground = Color(0xFF1E1E1E)
+val TableBorderColor = Color(0xFF555555)
 val AccentGreen = Color(0xFF10A37F)
 val TextColor = Color(0xFFECECF1)
 val HintColor = Color(0xFF8E8EA0)
@@ -280,7 +281,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                         parts.forEach { part ->
                             when (part) {
                                 is MessagePart.TextPart -> {
-                                    MarkdownRenderer(text = part.text, isTable = false)
+                                    MarkdownRenderer(text = part.text)
                                 }
                                 is MessagePart.CodePart -> {
                                     Box(
@@ -300,10 +301,8 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     }
                                 }
                                 is MessagePart.TablePart -> {
-                                    Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                                        // Передаем isTable = true
-                                        MarkdownRenderer(text = part.table, isTable = true)
-                                    }
+                                    // РИСУЕМ ТАБЛИЦУ САМИ
+                                    ComposeTableRenderer(tableMarkdown = part.table)
                                 }
                             }
                         }
@@ -315,24 +314,11 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 }
 
 @Composable
-fun MarkdownRenderer(text: String, isTable: Boolean) {
+fun MarkdownRenderer(text: String) {
     val context = LocalContext.current
-    
-    // НАСТРОЙКА ТАБЛИЦ: Заставляем Markwon подстраивать ширину столбцов под текст, 
-    // чтобы слова не ломались по буквам.
-    val tablePlugin = TablePlugin.create { builder ->
-        builder
-            .tableCellPadding(8)
-            .tableBorderWidth(1)
-            .tableBorderColor(android.graphics.Color.parseColor("#555555"))
-    }
-
     val markwon = remember { 
-        Markwon.builder(context)
-            .usePlugin(tablePlugin)
-            .build() 
+        Markwon.builder(context).build() 
     }
-    
     AndroidView(
         factory = { ctx ->
             TextView(ctx).apply {
@@ -342,19 +328,61 @@ fun MarkdownRenderer(text: String, isTable: Boolean) {
         },
         update = { textView ->
             markwon.setMarkdown(textView, text)
-            // Если это таблица, даем ей "естественную" ширину, чтобы она не сжималась и не рвала слова
-            if (isTable) {
-                textView.measure(
-                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
-                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-                )
-                textView.layout(0, 0, textView.measuredWidth, textView.measuredHeight)
-            }
         },
-        // Если таблица — делаем wrapContent, чтобы она была по размеру текста. 
-        // Если текст — fillMaxWidth.
-        modifier = if (isTable) Modifier.wrapContentWidth() else Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
     )
+}
+
+// НАШ СОБСТВЕННЫЙ РЕНДЕРЕР ТАБЛИЦ
+@Composable
+fun ComposeTableRenderer(tableMarkdown: String) {
+    val rows = remember(tableMarkdown) {
+        tableMarkdown.lines()
+            .filter { it.trim().startsWith("|") && !it.contains("---") } // Убираем линии-разделители
+            .map { line ->
+                line.trim().removePrefix("|").removeSuffix("|")
+                    .split("|")
+                    .map { it.trim() }
+            }
+    }
+
+    if (rows.isEmpty()) return
+
+    val columnCount = rows.maxOfOrNull { it.size } ?: 1
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp))
+    ) {
+        rows.forEachIndexed { rowIndex, row ->
+            val isHeader = rowIndex == 0
+            Row(modifier = Modifier.fillMaxWidth()) {
+                for (i in 0 until columnCount) {
+                    val cellText = row.getOrNull(i) ?: ""
+                    // Первый столбец (годы) уже, остальные шире
+                    val weight = if (i == 0) 1f else 2.5f
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(weight)
+                            .background(if (isHeader) UserMessageBackground else Color.Transparent)
+                            .border(0.5.dp, TableBorderColor)
+                            .padding(8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = cellText,
+                            color = TextColor,
+                            fontSize = 14.sp,
+                            fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
