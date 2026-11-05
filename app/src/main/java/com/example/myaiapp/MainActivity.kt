@@ -280,7 +280,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                         parts.forEach { part ->
                             when (part) {
                                 is MessagePart.TextPart -> {
-                                    MarkdownRenderer(text = part.text)
+                                    MarkdownRenderer(text = part.text, isTable = false)
                                 }
                                 is MessagePart.CodePart -> {
                                     Box(
@@ -301,7 +301,8 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                 }
                                 is MessagePart.TablePart -> {
                                     Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                                        MarkdownRenderer(text = part.table)
+                                        // Передаем isTable = true, чтобы задать огромную ширину
+                                        MarkdownRenderer(text = part.table, isTable = true)
                                     }
                                 }
                             }
@@ -314,9 +315,8 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
 }
 
 @Composable
-fun MarkdownRenderer(text: String) {
+fun MarkdownRenderer(text: String, isTable: Boolean) {
     val context = LocalContext.current
-    // ВОТ ЗДЕСЬ МЫ ВЕРНУЛИ ПЛАГИН ТАБЛИЦ
     val markwon = remember { 
         Markwon.builder(context)
             .usePlugin(TablePlugin.create(context))
@@ -332,7 +332,8 @@ fun MarkdownRenderer(text: String) {
         update = { textView ->
             markwon.setMarkdown(textView, text)
         },
-        modifier = Modifier.fillMaxWidth()
+        // ЕСЛИ ЭТО ТАБЛИЦА, ДАЕМ ЕЙ ШИРИНУ 2000dp, ЧТОБЫ ОНА НЕ СЖИМАЛАСЬ
+        modifier = if (isTable) Modifier.width(2000.dp) else Modifier.fillMaxWidth()
     )
 }
 
