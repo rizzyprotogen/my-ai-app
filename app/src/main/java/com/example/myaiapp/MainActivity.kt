@@ -301,7 +301,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     }
                                 }
                                 is MessagePart.TablePart -> {
-                                    // РИСУЕМ ТАБЛИЦУ САМИ
                                     ComposeTableRenderer(tableMarkdown = part.table)
                                 }
                             }
@@ -333,12 +332,12 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// НАШ СОБСТВЕННЫЙ РЕНДЕРЕР ТАБЛИЦ
+// УМНЫЙ РЕНДЕРЕР ТАБЛИЦ
 @Composable
 fun ComposeTableRenderer(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
         tableMarkdown.lines()
-            .filter { it.trim().startsWith("|") && !it.contains("---") } // Убираем линии-разделители
+            .filter { it.trim().startsWith("|") && !it.contains("---") }
             .map { line ->
                 line.trim().removePrefix("|").removeSuffix("|")
                     .split("|")
@@ -350,34 +349,43 @@ fun ComposeTableRenderer(tableMarkdown: String) {
 
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    Column(
+    // Горизонтальная прокрутка для таблицы
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
-            .clip(RoundedCornerShape(8.dp))
+            .horizontalScroll(rememberScrollState())
     ) {
-        rows.forEachIndexed { rowIndex, row ->
-            val isHeader = rowIndex == 0
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (i in 0 until columnCount) {
-                    val cellText = row.getOrNull(i) ?: ""
-                    // Первый столбец (годы) уже, остальные шире
-                    val weight = if (i == 0) 1f else 2.5f
-                    
-                    Box(
-                        modifier = Modifier
-                            .weight(weight)
-                            .background(if (isHeader) UserMessageBackground else Color.Transparent)
-                            .border(0.5.dp, TableBorderColor)
-                            .padding(8.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            text = cellText,
-                            color = TextColor,
-                            fontSize = 14.sp,
-                            fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal
-                        )
+        Column(
+            modifier = Modifier
+                .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp))
+                // Таблица сжимается по контенту, но не меньше экрана
+                .width(IntrinsicSize.Max)
+        ) {
+            rows.forEachIndexed { rowIndex, row ->
+                val isHeader = rowIndex == 0
+                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    for (i in 0 until columnCount) {
+                        val cellText = row.getOrNull(i) ?: ""
+                        
+                        Box(
+                            modifier = Modifier
+                                // Минимальная ширина 80dp, чтобы слова не ломались
+                                .widthIn(min = 80.dp)
+                                .width(IntrinsicSize.Max)
+                                .fillMaxHeight()
+                                .background(if (isHeader) UserMessageBackground else Color.Transparent)
+                                .border(0.5.dp, TableBorderColor)
+                                .padding(8.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Text(
+                                text = cellText,
+                                color = TextColor,
+                                fontSize = 14.sp,
+                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
                     }
                 }
             }
