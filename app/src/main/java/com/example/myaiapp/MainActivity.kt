@@ -332,7 +332,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// УМНЫЙ РЕНДЕРЕР ТАБЛИЦ
+// ИДЕАЛЬНЫЙ РЕНДЕРЕР ТАБЛИЦ
 @Composable
 fun ComposeTableRenderer(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -341,7 +341,10 @@ fun ComposeTableRenderer(tableMarkdown: String) {
             .map { line ->
                 line.trim().removePrefix("|").removeSuffix("|")
                     .split("|")
-                    .map { it.trim() }
+                    .map { 
+                        // Убираем Markdown-звездочки из ячеек
+                        it.trim().replace("**", "") 
+                    }
             }
     }
 
@@ -362,19 +365,21 @@ fun ComposeTableRenderer(tableMarkdown: String) {
         ) {
             rows.forEachIndexed { rowIndex, row ->
                 val isHeader = rowIndex == 0
-                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                
+                // Убираем IntrinsicSize.Min, чтобы строки не прыгали. 
+                // Задаем минимальную высоту 40dp, чтобы сетка была ровной.
+                Row(modifier = Modifier.heightIn(min = 40.dp)) {
                     for (i in 0 until columnCount) {
                         val cellText = row.getOrNull(i) ?: ""
                         
                         Box(
                             modifier = Modifier
-                                // Ограничиваем максимальную ширину ячейки, чтобы текст переносился по словам
                                 .widthIn(min = 80.dp, max = 200.dp)
-                                .fillMaxHeight()
+                                .fillMaxHeight() // Ячейка растягивается на всю высоту строки
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
                                 .padding(8.dp),
-                            contentAlignment = Alignment.CenterStart
+                            contentAlignment = Alignment.TopStart // Текст прижат к верхнему левому углу
                         ) {
                             Text(
                                 text = cellText,
