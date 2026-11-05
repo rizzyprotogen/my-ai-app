@@ -341,15 +341,13 @@ fun ComposeTableRenderer(tableMarkdown: String) {
             .map { line ->
                 line.trim().removePrefix("|").removeSuffix("|")
                     .split("|")
-                    .map { 
-                        // Убираем Markdown-звездочки из ячеек
-                        it.trim().replace("**", "") 
-                    }
+                    .map { it.trim().replace("**", "") }
             }
     }
 
     if (rows.isEmpty()) return
 
+    // Находим максимальное количество столбцов
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
     Row(
@@ -366,20 +364,21 @@ fun ComposeTableRenderer(tableMarkdown: String) {
             rows.forEachIndexed { rowIndex, row ->
                 val isHeader = rowIndex == 0
                 
-                // Убираем IntrinsicSize.Min, чтобы строки не прыгали. 
-                // Задаем минимальную высоту 40dp, чтобы сетка была ровной.
                 Row(modifier = Modifier.heightIn(min = 40.dp)) {
+                    // Проходимся по всем столбцам, даже если в строке их меньше
                     for (i in 0 until columnCount) {
+                        // Берем текст ячейки, если он есть, иначе пустую строку
                         val cellText = row.getOrNull(i) ?: ""
                         
                         Box(
                             modifier = Modifier
-                                .widthIn(min = 80.dp, max = 200.dp)
-                                .fillMaxHeight() // Ячейка растягивается на всю высоту строки
+                                // Минимальная ширина 80dp, максимум 250dp
+                                .widthIn(min = 80.dp, max = 250.dp)
+                                .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
                                 .padding(8.dp),
-                            contentAlignment = Alignment.TopStart // Текст прижат к верхнему левому углу
+                            contentAlignment = Alignment.TopStart
                         ) {
                             Text(
                                 text = cellText,
