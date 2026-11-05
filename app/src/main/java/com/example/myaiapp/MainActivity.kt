@@ -441,4 +441,10 @@ fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Uni
             IconButton(
                 onClick = onSend,
                 enabled = isSendEnabled,
-                modifier = Modifier.size(38.dp).clip(Ci
+                modifier = Modifier.size(38.dp).clip(CircleShape).background(if (isSendEnabled) AccentGreen else Color(0xFF565869))
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = if (isSendEnabled) Color.White else Color(0xFF8E8EA0), modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
