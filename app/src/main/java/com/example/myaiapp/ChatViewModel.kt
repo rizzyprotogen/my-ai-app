@@ -142,11 +142,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         val selectedPersona = AiPersona.valueOf(currentSettings.persona)
         
-        // ПРОМПТ: Просим Markdown, но строго до 3-4 столбцов и с пробелами
         var systemPrompt = "${selectedPersona.promptPrefix} " +
                 "ВАЖНО: Всегда используй Markdown для оформления текста. " +
                 "Если делаешь таблицу, ОБЯЗАТЕЛЬНО ставь пробелы вокруг палочек: '| Текст | Текст |'. " +
                 "Не делай таблицы шире 3-4 столбцов! Если данных больше, напиши их обычным списком. " +
+                "Код оборачивай в тройные обратные кавычки (```). " +
                 "Не используй сложные математические формулы LaTeX (пиши обычным текстом)."
                 
         if (userName != null) {
