@@ -7,10 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +30,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +48,7 @@ val SidebarBackground = Color(0xFF1E1E1E)
 val BotMessageBackground = Color(0xFF343541)
 val UserMessageBackground = Color(0xFF444654)
 val InputBarBackground = Color(0xFF40414F)
+val CodeBackground = Color(0xFF1E1E1E) // Фон для кода
 val AccentGreen = Color(0xFF10A37F)
 val TextColor = Color(0xFFECECF1)
 val HintColor = Color(0xFF8E8EA0)
@@ -166,6 +170,37 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
+// Парсер текста: разделяет обычный текст и код
+fun parseMessage(text: String): List<Pair<String, Boolean>> {
+    val parts = mutableListOf<Pair<String, Boolean>>()
+    val regex = Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL)
+    var lastIndex = 0
+
+    regex.findAll(text).forEach { matchResult ->
+        // Текст перед кодом
+        if (matchResult.range.first > lastIndex) {
+            parts.add(Pair(text.substring(lastIndex, matchResult.range.first), false))
+        }
+        // Сам код
+        val codeText = matchResult.groupValues[1].trim()
+        parts.add(Pair(codeText, true))
+        
+        lastIndex = matchResult.range.last + 1
+    }
+
+    // Остаток текста после последнего кода
+    if (lastIndex < text.length) {
+        parts.add(Pair(text.substring(lastIndex), false))
+    }
+    
+    // Если кода вообще не было
+    if (parts.isEmpty()) {
+        parts.add(Pair(text, false))
+    }
+
+    return parts
+}
+
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
@@ -201,7 +236,32 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
-                    MarkdownRenderer(text = displayedText)
+                    val parts = remember(displayedText) { parseMessage(displayedText) }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        parts.forEach { (text, isCode) ->
+                            if (isCode) {
+                                // Блок кода (с горизонтальной прокруткой)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(CodeBackground)
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(12.dp)
+                                ) {
+                                    Text(
+                                        text = text,
+                                        color = Color(0xFFA9B7C6),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            } else {
+                                // Обычный текст (без прокрутки)
+                                MarkdownRenderer(text = text)
+                            }
+                        }
+                    }
                 }
             }
         }
