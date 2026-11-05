@@ -169,7 +169,7 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
     }
 }
 
-// ПАРСЕР: Разбивает текст на части (Текст, Код, Таблица)
+// ПАРСЕР: Ищем и текст, и код (с языком и без)
 sealed class MessagePart {
     data class TextPart(val text: String) : MessagePart()
     data class CodePart(val code: String) : MessagePart()
@@ -178,50 +178,70 @@ sealed class MessagePart {
 
 fun parseMessage(text: String): List<MessagePart> {
     val parts = mutableListOf<MessagePart>()
+    // Ищем блоки кода: ```язык ... ``` или ``` ... ```
+    val codeRegex = Regex("```(?:[a-zA-Z0-9]+)?\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
+    
+    var lastIndex = 0
+    codeRegex.findAll(text).forEach { match ->
+        // Текст перед кодом
+        if (match.range.first > lastIndex) {
+            val textBefore = text.substring(lastIndex, match.range.first)
+            parts.addAll(parseTables(textBefore))
+        }
+        // Сам код
+        parts.add(MessagePart.CodePart(match.groupValues[1].trim()))
+        
+        lastIndex = match.range.last + 1
+    }
+    
+    // Остаток текста
+    if (lastIndex < text.length) {
+        val textAfter = text.substring(lastIndex)
+        parts.addAll(parseTables(textAfter))
+    }
+    
+    if (parts.isEmpty()) {
+        parts.add(MessagePart.TextPart(text))
+    }
+    
+    return parts
+}
+
+// Вспомогательная функция для поиска таблиц
+fun parseTables(text: String): List<MessagePart> {
+    val parts = mutableListOf<MessagePart>()
     val lines = text.lines()
     var currentBlock = StringBuilder()
-    var currentType = "text" // text, code, table
-
-    fun flushBlock() {
-        if (currentBlock.isEmpty()) return
-        val blockText = currentBlock.toString().trim()
-        if (blockText.isEmpty()) return
-        
-        when (currentType) {
-            "text" -> parts.add(MessagePart.TextPart(blockText))
-            "code" -> parts.add(MessagePart.CodePart(blockText))
-            "table" -> parts.add(MessagePart.TablePart(blockText))
-        }
-        currentBlock.clear()
-    }
+    var inTable = false
 
     for (line in lines) {
-        val trimmed = line.trim()
-        var newType = "text"
+        val isTableLine = line.trim().startsWith("|")
         
-        if (trimmed.startsWith("```")) {
-            newType = "code"
-        } else if (trimmed.startsWith("|")) {
-            newType = "table"
-        }
-
-        if (newType != currentType) {
-            flushBlock()
-            currentType = newType
-        }
-        
-        // Не добавляем сами ``` в код
-        if (currentType == "code" && trimmed.startsWith("```")) {
-            continue 
+        if (isTableLine && !inTable) {
+            if (currentBlock.isNotEmpty()) {
+                parts.add(MessagePart.TextPart(currentBlock.toString().trim()))
+                currentBlock.clear()
+            }
+            inTable = true
+        } else if (!isTableLine && inTable) {
+            if (currentBlock.isNotEmpty()) {
+                parts.add(MessagePart.TablePart(currentBlock.toString().trim()))
+                currentBlock.clear()
+            }
+            inTable = false
         }
         
         currentBlock.append(line).append("\n")
     }
-    flushBlock()
-
-    if (parts.isEmpty()) {
-        parts.add(MessagePart.TextPart(text))
+    
+    if (currentBlock.isNotEmpty()) {
+        val blockText = currentBlock.toString().trim()
+        if (blockText.isNotEmpty()) {
+            if (inTable) parts.add(MessagePart.TablePart(blockText))
+            else parts.add(MessagePart.TextPart(blockText))
+        }
     }
+    
     return parts
 }
 
@@ -268,6 +288,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     MarkdownRenderer(text = part.text)
                                 }
                                 is MessagePart.CodePart -> {
+                                    // Блок кода с горизонтальной прокруткой
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -285,6 +306,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     }
                                 }
                                 is MessagePart.TablePart -> {
+                                    // Таблица с горизонтальной прокруткой
                                     Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                                         MarkdownRenderer(text = part.table)
                                     }
