@@ -53,6 +53,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20231013")
 
-    // Оставляем Markwon только для базового текста (жирный шрифт, списки)
+    // Markwon для текста и таблиц
     implementation("io.noties.markwon:core:4.6.2")
+    implementation("io.noties.markwon:ext-tables:4.6.2")
 }
