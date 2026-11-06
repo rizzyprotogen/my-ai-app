@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ksnd.autosizetable.AutoSizeTable // <-- ИСПРАВЛЕННЫЙ ИМПОРТ
+import ksnd.autosizetable.AutoSizeTable // ПРАВИЛЬНЫЙ ИМПОРТ
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
