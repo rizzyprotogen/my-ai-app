@@ -300,8 +300,15 @@ fun parseTables(text: String): List<MessagePart> {
     return parts
 }
 
-fun containsMarkdown(text: String): Boolean {
-    return text.contains("**") || text.contains("##") || text.contains("|") || text.contains("```")
+// Очистка текста от разметки во время печати
+fun cleanMarkdownForPrinting(text: String): String {
+    return text
+        .replace("**", "")
+        .replace("##", "")
+        .replace("#", "")
+        .replace("```", "")
+        .replace("|", " ")
+        .replace("---", "")
 }
 
 @Composable
@@ -312,20 +319,14 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     LaunchedEffect(message.id) {
         if (isLatest) {
             val text = message.text
-            
-            if (containsMarkdown(text)) {
-                displayedText = text
-                isPrinting = false
-            } else {
-                var i = 0
-                while (i < text.length) {
-                    val end = (i + 15).coerceAtMost(text.length)
-                    displayedText = text.substring(0, end)
-                    i = end
-                    delay(1) 
-                }
-                isPrinting = false
+            var i = 0
+            while (i < text.length) {
+                val end = (i + 15).coerceAtMost(text.length)
+                displayedText = text.substring(0, end)
+                i = end
+                delay(1) 
             }
+            isPrinting = false
         } else {
             displayedText = message.text
             isPrinting = false
@@ -343,7 +344,8 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
                 if (isPrinting) {
-                    Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
+                    // Во время печати показываем очищенный текст
+                    Text(text = cleanMarkdownForPrinting(displayedText), color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
                     val parts = remember(displayedText) { parseMessage(displayedText) }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -452,7 +454,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// АДАПТИВНАЯ ТАБЛИЦА (КАК В СОВЕТЕ)
+// АДАПТИВНАЯ ТАБЛИЦА
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -468,7 +470,6 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Измеряем ширину самого длинного текста в столбце (или слова)
     val textMeasurer = rememberTextMeasurer()
     val columnWidths = remember(rows) {
         List(columnCount) { colIndex ->
@@ -478,8 +479,7 @@ fun RealTable(tableMarkdown: String) {
                 style = TextStyle(fontSize = 14.sp)
             ).size.width
             
-            // Переводим в dp и добавляем padding (16dp). Не делим на 3!
-            (width / 2).dp.coerceIn(80.dp, 300.dp) // Попробовал /2 вместо /3
+            (width / 2).dp.coerceIn(80.dp, 300.dp)
         }
     }
 
