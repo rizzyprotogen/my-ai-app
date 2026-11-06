@@ -34,10 +34,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -258,8 +256,9 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
         if (isLatest) {
             val text = message.text
             var i = 0
+            // Печатаем быстрее, чтобы не было видно сырых символов
             while (i < text.length) {
-                val end = (i + 7).coerceAtMost(text.length)
+                val end = (i + 15).coerceAtMost(text.length)
                 displayedText = text.substring(0, end)
                 i = end
                 delay(1) 
@@ -282,6 +281,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
                 if (isPrinting) {
+                    // Во время печати показываем простой текст, чтобы не было артефактов
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
                     val parts = remember(displayedText) { parseMessage(displayedText) }
@@ -391,7 +391,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНАЯ ТАБЛИЦА С АДАПТИВНОЙ ШИРИНОЙ
+// УМНАЯ ТАБЛИЦА С ФИКСИРОВАННОЙ ШИРИНОЙ (ЧТОБЫ НЕ БЫЛО СТОЛБИКОВ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -407,26 +407,14 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Измеряем текст для адаптивной ширины
-    val textMeasurer = rememberTextMeasurer()
-    val columnWidths = remember(rows) {
-        List(columnCount) { colIndex ->
-            val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
-            val width = textMeasurer.measure(
-                text = maxText,
-                style = TextStyle(fontSize = 14.sp)
-            ).size.width
-            
-            // Переводим в dp и добавляем padding (+16dp), ограничивая максимум 250dp
-            (width / 3).dp.coerceIn(80.dp, 250.dp)
-        }
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
     ) {
+        // Фиксированная ширина столбца, чтобы сетка была ровной
+        val columnWidth = 140.dp
+
         Column(
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
@@ -441,7 +429,7 @@ fun RealTable(tableMarkdown: String) {
                         
                         Box(
                             modifier = Modifier
-                                .width(columnWidths[i])
+                                .width(columnWidth)
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
@@ -501,113 +489,4 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
                 Text("Умная (gpt-oss-120b)", color = TextColor)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = settings.selectedModel == "openai/gpt-oss-20b", onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-20b")) })
-                Text("Быстрая (gpt-oss-20b)", color = TextColor)
-            }
-
-            Divider(color = UserMessageBackground)
-
-            Text("Креативность (Температура): ${String.format("%.1f", settings.temperature)}", color = AccentGreen, fontWeight = FontWeight.Bold)
-            Slider(value = settings.temperature, onValueChange = { chatViewModel.updateSettings(settings.copy(temperature = it)) }, valueRange = 0f..1f)
-
-            Divider(color = UserMessageBackground)
-
-            Text("Характер ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
-            
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { expanded = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextColor)
-                ) {
-                    val currentPersona = AiPersona.valueOf(settings.persona)
-                    Text(currentPersona.displayName)
-                }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    modifier = Modifier.background(BotMessageBackground)
-                ) {
-                    AiPersona.values().forEach { persona ->
-                        DropdownMenuItem(
-                            text = { Text(persona.displayName, color = TextColor) },
-                            onClick = {
-                                chatViewModel.updateSettings(settings.copy(persona = persona.name))
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(onClick = { showClearDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = DangerRed), modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Delete, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Очистить все чаты")
-            }
-        }
-
-        if (showClearDialog) {
-            AlertDialog(
-                onDismissRequest = { showClearDialog = false },
-                title = { Text("Очистить чаты?") },
-                text = { Text("Все ваши диалоги будут безвозвратно удалены.") },
-                confirmButton = { TextButton(onClick = { chatViewModel.clearAllChats(); showClearDialog = false; onBack() }) { Text("Удалить", color = DangerRed) } },
-                dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("Отмена") } },
-                containerColor = BotMessageBackground
-            )
-        }
-    }
-}
-
-@Composable
-fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
-    Surface(color = ChatGptBackground, modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 12.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
-                .background(InputBarBackground)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextField(
-                value = text,
-                onValueChange = onTextChange,
-                placeholder = { Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = AccentGreen,
-                    focusedTextColor = TextColor,
-                    unfocusedTextColor = TextColor
-                ),
-                modifier = Modifier.weight(1f)
-            )
-
-            val isSendEnabled = text.trim().isNotEmpty()
-
-            IconButton(
-                onClick = onSend,
-                enabled = isSendEnabled,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(if (isSendEnabled) AccentGreen else Color(0xFF565869))
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Отправить",
-                    tint = if (isSendEnabled) Color.White else Color(0xFF8E8EA0),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-    }
-}
+  
