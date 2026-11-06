@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -81,7 +82,6 @@ fun RizzyApp(chatViewModel: ChatViewModel = viewModel()) {
     }
 }
 
-// ВЫНЕС CHATINPUTBAR ПОВЫШЕ
 @Composable
 fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
     Surface(color = ChatGptBackground, modifier = Modifier.fillMaxWidth()) {
@@ -344,7 +344,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
                 if (isPrinting) {
-                    // Во время печати показываем очищенный текст
                     Text(text = cleanMarkdownForPrinting(displayedText), color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
                     val parts = remember(displayedText) { parseMessage(displayedText) }
@@ -454,7 +453,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// АДАПТИВНАЯ ТАБЛИЦА
+// НАСТОЯЩАЯ ТАБЛИЦА (ИСПРАВЛЕНА ПЛОТНОСТЬ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -471,15 +470,24 @@ fun RealTable(tableMarkdown: String) {
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
     val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current // Получаем плотность экрана
+
     val columnWidths = remember(rows) {
         List(columnCount) { colIndex ->
+            // Находим самый длинный текст в столбце
             val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
-            val width = textMeasurer.measure(
+            
+            // Измеряем ширину в пикселях
+            val widthPx = textMeasurer.measure(
                 text = maxText,
                 style = TextStyle(fontSize = 14.sp)
             ).size.width
             
-            (width / 2).dp.coerceIn(80.dp, 300.dp)
+            // ПРАВИЛЬНО переводим пиксели в dp с учетом плотности экрана!
+            val widthDp = with(density) { widthPx.toDp() }
+            
+            // Добавляем отступ 16dp (по 8dp с каждой стороны) и ограничиваем
+            (widthDp + 16.dp).coerceIn(80.dp, 300.dp)
         }
     }
 
