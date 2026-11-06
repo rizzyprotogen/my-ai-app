@@ -607,7 +607,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНАЯ ТАБЛИЦА С AUTOSIZETABLE (ИСПРАВЛЕННЫЙ СИНТАКСИС)
+// ИДЕАЛЬНАЯ ТАБЛИЦА С AUTOSIZETABLE (ПОЛНЫЙ ФИКС)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -630,16 +630,18 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Преобразуем строки в список списков лямбд-ячеек (как требует библиотека)
-    val tableContent = rows.map { row ->
+    // Явно указываем, что лямбды внутри списков - это @Composable функции
+    val tableContent: List<List<@Composable () -> Unit>> = rows.mapIndexed { rowIndex, row ->
         (0 until columnCount).map { colIndex ->
             val cellText = row.getOrNull(colIndex) ?: ""
-            {
+            val isHeader = rowIndex == 0
+            
+            @Composable {
                 Text(
                     text = cellText,
                     color = TextColor,
                     fontSize = 14.sp,
-                    fontWeight = if (rows.indexOf(row) == 0) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.padding(8.dp),
                     softWrap = true
                 )
