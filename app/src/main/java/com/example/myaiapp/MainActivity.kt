@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kosenda.autosizetable.AutoSizeTable
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
@@ -606,7 +607,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНАЯ ТАБЛИЦА (СОВЕТ ОТ ИИ)
+// ИДЕАЛЬНАЯ ТАБЛИЦА С БИБЛИОТЕКОЙ AUTOSIZETABLE
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -619,7 +620,7 @@ fun RealTable(tableMarkdown: String) {
                         it.trim()
                             .replace("**", "")
                             .replace("`", "")
-                            .replace("<br>", "\n") // ФИКС <br>
+                            .replace("<br>", "\n")
                             .replace("<br/>", "\n")
                             .replace("<br />", "\n")
                     }
@@ -629,50 +630,28 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Оборачиваем в BoxWithConstraints, чтобы понять доступную ширину
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val tableWidth = maxWidth // Ширина экрана
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()) // Скролл, если не влезает
-        ) {
-            Column(
-                modifier = Modifier
-                    .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
-                    .clip(RoundedCornerShape(8.dp))
-                    .width(if (columnCount <= 2) tableWidth else tableWidth * 1.5f) // Умная ширина
-            ) {
-                rows.forEachIndexed { rowIndex, row ->
-                    val isHeader = rowIndex == 0
-                    
-                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                        for (i in 0 until columnCount) {
-                            val cellText = row.getOrNull(i) ?: ""
-                            
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f) // Столбцы делят ширину поровну
-                                    .fillMaxHeight()
-                                    .background(if (isHeader) UserMessageBackground else Color.Transparent)
-                                    .border(0.5.dp, TableBorderColor)
-                                    .padding(8.dp),
-                                contentAlignment = Alignment.TopStart
-                            ) {
-                                Text(
-                                    text = cellText,
-                                    color = TextColor,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-                                    softWrap = true
-                                )
-                            }
-                        }
-                    }
-                }
+    // Оборачиваем в горизонтальную прокрутку на случай, если таблица не влезет
+    Box(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        AutoSizeTable(
+            modifier = Modifier.padding(8.dp),
+            outlineColor = TableBorderColor,
+            rowCount = rows.size,
+            columnCount = columnCount,
+            backgroundColor = { rowIndex, _ ->
+                if (rowIndex == 0) UserMessageBackground else Color.Transparent
+            },
+            content = { rowIndex, columnIndex ->
+                val cellText = rows.getOrNull(rowIndex)?.getOrNull(columnIndex) ?: ""
+                Text(
+                    text = cellText,
+                    color = TextColor,
+                    fontSize = 14.sp,
+                    fontWeight = if (rowIndex == 0) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.padding(8.dp),
+                    softWrap = true
+                )
             }
-        }
+        )
     }
 }
 
