@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -433,17 +435,22 @@ fun CodeBlock(code: String, language: String) {
     }
 }
 
+// РЕНДЕРЕР ТЕКСТА С КЛИКАБЕЛЬНЫМИ ССЫЛКАМИ
 @Composable
 fun MarkdownRenderer(text: String) {
     val context = LocalContext.current
     val markwon = remember { 
-        Markwon.builder(context).build() 
+        Markwon.builder(context)
+            .usePlugin(TablePlugin.create(context))
+            .build() 
     }
     AndroidView(
         factory = { ctx ->
             TextView(ctx).apply {
                 setTextColor(android.graphics.Color.parseColor("#ECECF1"))
                 textSize = 15f
+                // ВОТ ЭТА СТРОЧКА ДЕЛАЕТ ССЫЛКИ КЛИКАБЕЛЬНЫМИ
+                movementMethod = LinkMovementMethod.getInstance() 
             }
         },
         update = { textView ->
@@ -453,7 +460,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// НАСТОЯЩАЯ ТАБЛИЦА (ИСПРАВЛЕНА ПЛОТНОСТЬ)
+// АДАПТИВНАЯ ТАБЛИЦА
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -470,23 +477,19 @@ fun RealTable(tableMarkdown: String) {
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
     val textMeasurer = rememberTextMeasurer()
-    val density = LocalDensity.current // Получаем плотность экрана
+    val density = LocalDensity.current
 
     val columnWidths = remember(rows) {
         List(columnCount) { colIndex ->
-            // Находим самый длинный текст в столбце
             val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
             
-            // Измеряем ширину в пикселях
             val widthPx = textMeasurer.measure(
                 text = maxText,
                 style = TextStyle(fontSize = 14.sp)
             ).size.width
             
-            // ПРАВИЛЬНО переводим пиксели в dp с учетом плотности экрана!
             val widthDp = with(density) { widthPx.toDp() }
             
-            // Добавляем отступ 16dp (по 8dp с каждой стороны) и ограничиваем
             (widthDp + 16.dp).coerceIn(80.dp, 300.dp)
         }
     }
