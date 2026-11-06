@@ -20,8 +20,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -39,12 +41,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.auth.FirebaseAuth
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
@@ -74,13 +79,174 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun RizzyApp(chatViewModel: ChatViewModel = viewModel()) {
+fun RizzyApp(
+    chatViewModel: ChatViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
+) {
+    val isAuthenticated by authViewModel.authState.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
 
-    if (showSettings) {
-        SettingsScreen(chatViewModel = chatViewModel, onBack = { showSettings = false })
+    if (!isAuthenticated) {
+        AuthScreen(authViewModel)
     } else {
-        ChatGptScreen(chatViewModel = chatViewModel, onOpenSettings = { showSettings = true })
+        if (showSettings) {
+            SettingsScreen(chatViewModel = chatViewModel, onBack = { showSettings = false })
+        } else {
+            ChatGptScreen(
+                chatViewModel = chatViewModel,
+                onOpenSettings = { showSettings = true },
+                onLogout = { authViewModel.logout() }
+            )
+        }
+    }
+}
+
+// ЭКРАН ВХОДА И РЕГИСТРАЦИИ
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AuthScreen(authViewModel: AuthViewModel) {
+    var isLoginMode by remember { mutableStateOf(true) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    val isLoading by authViewModel.isLoading.collectAsState()
+    val errorMessage by authViewModel.errorMessage.collectAsState()
+    val resetSent by authViewModel.resetPasswordSent.collectAsState()
+
+    // Диалог сброса пароля
+    if (showResetDialog) {
+        var resetEmail by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false; authViewModel.clearError() },
+            title = { Text("Восстановление пароля", color = TextColor) },
+            text = {
+                Column {
+                    Text("Введите вашу почту, и мы отправим ссылку для сброса пароля.", color = TextColor)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = { resetEmail = it },
+                        label = { Text("Почта") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextColor, unfocusedTextColor = TextColor)
+                    )
+                    if (resetSent) {
+                        Text("Письмо отправлено! Проверьте почту.", color = AccentGreen, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    if (errorMessage != null) {
+                        Text(errorMessage!!, color = DangerRed, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { authViewModel.resetPassword(resetEmail) }) {
+                    Text("Отправить", color = AccentGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false; authViewModel.clearError() }) {
+                    Text("Отмена", color = TextColor)
+                }
+            },
+            containerColor = BotMessageBackground
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ChatGptBackground)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "RizzyAI",
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            color = AccentGreen,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Text(
+            text = if (isLoginMode) "С возвращением!" else "Создайте аккаунт",
+            fontSize = 18.sp,
+            color = TextColor,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = TextColor,
+                unfocusedTextColor = TextColor,
+                focusedBorderColor = AccentGreen
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Пароль") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = TextColor,
+                unfocusedTextColor = TextColor,
+                focusedBorderColor = AccentGreen
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (isLoginMode) {
+            Text(
+                text = "Забыли пароль?",
+                color = HintColor,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .clickable { showResetDialog = true }
+            )
+        }
+
+        if (errorMessage != null) {
+            Text(text = errorMessage!!, color = DangerRed, modifier = Modifier.padding(top = 8.dp))
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                if (isLoginMode) authViewModel.login(email, password)
+                else authViewModel.register(email, password)
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+            enabled = !isLoading
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+            } else {
+                Text(if (isLoginMode) "Войти" else "Зарегистрироваться", fontSize = 16.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = if (isLoginMode) "Нет аккаунта? Зарегистрироваться" else "Уже есть аккаунт? Войти",
+            color = AccentGreen,
+            modifier = Modifier.clickable {
+                isLoginMode = !isLoginMode
+                authViewModel.clearError()
+            }
+        )
     }
 }
 
@@ -136,7 +302,7 @@ fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Uni
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
+fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit, onLogout: () -> Unit) {
     val chats by chatViewModel.chats.collectAsState()
     val currentChatId by chatViewModel.currentChatId.collectAsState()
     val isLoading by chatViewModel.isLoading.collectAsState()
@@ -185,6 +351,12 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
                     headlineContent = { Text("Настройки", color = TextColor) },
                     leadingContent = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextColor) },
                     modifier = Modifier.clickable { onOpenSettings(); scope.launch { drawerState.close() } },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+                ListItem(
+                    headlineContent = { Text("Выйти", color = DangerRed) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = DangerRed) },
+                    modifier = Modifier.clickable { onLogout() },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -302,7 +474,6 @@ fun parseTables(text: String): List<MessagePart> {
     return parts
 }
 
-// Очистка текста от разметки во время печати
 fun cleanMarkdownForPrinting(text: String): String {
     return text
         .replace("**", "")
@@ -370,7 +541,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     }
 }
 
-// БЛОК КОДА С КНОПКОЙ КОПИРОВАНИЯ
 @Composable
 fun CodeBlock(code: String, language: String) {
     val context = LocalContext.current
@@ -392,13 +562,7 @@ fun CodeBlock(code: String, language: String) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = language,
-                color = HintColor,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace
-            )
-            
+            Text(text = language, color = HintColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             Text(
                 text = if (copied) "Скопировано!" else "Копировать",
                 color = AccentGreen,
@@ -411,19 +575,8 @@ fun CodeBlock(code: String, language: String) {
                 }
             )
         }
-        
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(12.dp)
-        ) {
-            Text(
-                text = code,
-                color = Color(0xFFA9B7C6),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp
-            )
+        Box(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(12.dp)) {
+            Text(text = code, color = Color(0xFFA9B7C6), fontFamily = FontFamily.Monospace, fontSize = 14.sp)
         }
     }
     
@@ -435,7 +588,6 @@ fun CodeBlock(code: String, language: String) {
     }
 }
 
-// РЕНДЕРЕР ТЕКСТА С КЛИКАБЕЛЬНЫМИ ССЫЛКАМИ
 @Composable
 fun MarkdownRenderer(text: String) {
     val context = LocalContext.current
@@ -449,8 +601,7 @@ fun MarkdownRenderer(text: String) {
             TextView(ctx).apply {
                 setTextColor(android.graphics.Color.parseColor("#ECECF1"))
                 textSize = 15f
-                // ВОТ ЭТА СТРОЧКА ДЕЛАЕТ ССЫЛКИ КЛИКАБЕЛЬНЫМИ
-                movementMethod = LinkMovementMethod.getInstance() 
+                movementMethod = LinkMovementMethod.getInstance()
             }
         },
         update = { textView ->
@@ -460,7 +611,6 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// АДАПТИВНАЯ ТАБЛИЦА
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -469,7 +619,7 @@ fun RealTable(tableMarkdown: String) {
             .map { line ->
                 line.trim().removePrefix("|").removeSuffix("|")
                     .split("|")
-                    .map { it.trim().replace("**", "") }
+                    .map { it.trim().replace("**", "").replace("`", "") }
             }
     }
 
@@ -482,48 +632,27 @@ fun RealTable(tableMarkdown: String) {
     val columnWidths = remember(rows) {
         List(columnCount) { colIndex ->
             val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
-            
-            val widthPx = textMeasurer.measure(
-                text = maxText,
-                style = TextStyle(fontSize = 14.sp)
-            ).size.width
-            
+            val widthPx = textMeasurer.measure(text = maxText, style = TextStyle(fontSize = 14.sp)).size.width
             val widthDp = with(density) { widthPx.toDp() }
-            
             (widthDp + 16.dp).coerceIn(80.dp, 300.dp)
         }
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-    ) {
-        Column(
-            modifier = Modifier
-                .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp))
-        ) {
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.border(1.dp, TableBorderColor, RoundedCornerShape(8.dp)).clip(RoundedCornerShape(8.dp))) {
             rows.forEachIndexed { rowIndex, row ->
                 val isHeader = rowIndex == 0
-                
                 Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                     for (i in 0 until columnCount) {
                         val cellText = row.getOrNull(i) ?: ""
-                        
                         Box(
-                            modifier = Modifier
-                                .width(columnWidths[i])
-                                .fillMaxHeight()
+                            modifier = Modifier.width(columnWidths[i]).fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
-                                .border(0.5.dp, TableBorderColor)
-                                .padding(8.dp),
+                                .border(0.5.dp, TableBorderColor).padding(8.dp),
                             contentAlignment = Alignment.TopStart
                         ) {
                             Text(
-                                text = cellText,
-                                color = TextColor,
-                                fontSize = 14.sp,
+                                text = cellText, color = TextColor, fontSize = 14.sp,
                                 fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
                                 softWrap = true
                             )
