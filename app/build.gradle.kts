@@ -63,7 +63,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
 
-    // Библиотека для идеальных таблиц (правильные координаты JitPack)
+    // Библиотека для идеальных таблиц (JitPack)
     implementation("com.github.kosenda:AutoSizeTable:1.2.0")
 
     // Исключаем конфликтующую библиотеку
