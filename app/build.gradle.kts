@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services") // Подключаем Firebase
 }
 
 android {
@@ -53,7 +54,12 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20231013")
 
-    // Markwon для текста и таблиц
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:ext-tables:4.6.2")
+    implementation("io.noties.markwon:syntax-highlight:4.6.2")
+
+    // Firebase (BoM - Bill of Materials, чтобы версии не конфликтовали)
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-auth") // Авторизация
+    implementation("com.google.firebase:firebase-firestore") // База данных (на будущее)
 }
