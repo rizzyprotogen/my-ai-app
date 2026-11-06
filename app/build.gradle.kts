@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services") // Плагин Firebase
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -58,12 +58,15 @@ dependencies {
     implementation("io.noties.markwon:ext-tables:4.6.2")
     implementation("io.noties.markwon:syntax-highlight:4.6.2")
 
-    // Firebase (BoM для управления версиями)
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
 
-    // ИСКЛЮЧАЕМ КОНФЛИКТУЮЩУЮ БИБЛИОТЕКУ (исправляет ошибку Duplicate class)
+    // Библиотека для идеальных таблиц
+    implementation("io.github.kosenda:autosizetable:1.2.0")
+
+    // Исключаем конфликтующую библиотеку
     configurations.all {
         exclude(group = "org.jetbrains", module = "annotations-java5")
     }
