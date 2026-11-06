@@ -34,8 +34,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -389,7 +391,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// УМНАЯ ТАБЛИЦА С ВЕСАМИ (ФИКС)
+// ИДЕАЛЬНАЯ ТАБЛИЦА С АДАПТИВНОЙ ШИРИНОЙ
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -405,6 +407,21 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
+    // Измеряем текст для адаптивной ширины
+    val textMeasurer = rememberTextMeasurer()
+    val columnWidths = remember(rows) {
+        List(columnCount) { colIndex ->
+            val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
+            val width = textMeasurer.measure(
+                text = maxText,
+                style = TextStyle(fontSize = 14.sp)
+            ).size.width
+            
+            // Переводим в dp и добавляем padding (+16dp), ограничивая максимум 250dp
+            (width / 3).dp.coerceIn(80.dp, 250.dp) // Убрали деление на 3, ставим /3 для конвертации px в dp (примерно)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -414,7 +431,6 @@ fun RealTable(tableMarkdown: String) {
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
-                .width(IntrinsicSize.Max)
         ) {
             rows.forEachIndexed { rowIndex, row ->
                 val isHeader = rowIndex == 0
@@ -423,12 +439,9 @@ fun RealTable(tableMarkdown: String) {
                     for (i in 0 until columnCount) {
                         val cellText = row.getOrNull(i) ?: ""
                         
-                        // Умное распределение веса: если столбец первый (обычно "Период") — он уже, остальные шире
-                        val weight = if (i == 0) 1f else 2f
-                        
                         Box(
                             modifier = Modifier
-                                .weight(weight)
+                                .width(columnWidths[i])
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
@@ -482,10 +495,4 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
         containerColor = ChatGptBackground
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Модель ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = settings.selectedModel == "openai/gpt-oss-120b", onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-120b")) })
-                Text("Умная (gpt-oss-120b)", color = TextColor)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = settings.selecte
+            
