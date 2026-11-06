@@ -332,7 +332,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНЫЙ РЕНДЕРЕР ТАБЛИЦ
+// ИДЕАЛЬНЫЙ РЕНДЕРЕР ТАБЛИЦ (РОВНАЯ СЕТКА)
 @Composable
 fun ComposeTableRenderer(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -347,33 +347,32 @@ fun ComposeTableRenderer(tableMarkdown: String) {
 
     if (rows.isEmpty()) return
 
-    // Находим максимальное количество столбцов
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
+    // Горизонтальная прокрутка на случай, если таблица шире экрана
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
     ) {
+        // Фиксированная ширина для каждого столбца, чтобы сетка не ехала
+        val columnWidth = if (columnCount <= 2) 150.dp else 120.dp
+
         Column(
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
-                .width(IntrinsicSize.Max)
         ) {
             rows.forEachIndexed { rowIndex, row ->
                 val isHeader = rowIndex == 0
                 
-                Row(modifier = Modifier.heightIn(min = 40.dp)) {
-                    // Проходимся по всем столбцам, даже если в строке их меньше
+                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                     for (i in 0 until columnCount) {
-                        // Берем текст ячейки, если он есть, иначе пустую строку
                         val cellText = row.getOrNull(i) ?: ""
                         
                         Box(
                             modifier = Modifier
-                                // Минимальная ширина 80dp, максимум 250dp
-                                .widthIn(min = 80.dp, max = 250.dp)
+                                .width(columnWidth) // Жестко задаем ширину каждому столбцу
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
