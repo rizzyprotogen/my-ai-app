@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ksnd.autosizetable.AutoSizeTable // ПРАВИЛЬНЫЙ ИМПОРТ
+import ksnd.autosizetable.AutoSizeTable
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
@@ -607,7 +607,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНАЯ ТАБЛИЦА С БИБЛИОТЕКОЙ AUTOSIZETABLE
+// ИДЕАЛЬНАЯ ТАБЛИЦА С AUTOSIZETABLE (ИСПРАВЛЕННЫЙ СИНТАКСИС)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -630,26 +630,33 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    Box(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-        AutoSizeTable(
-            modifier = Modifier.padding(8.dp),
-            outlineColor = TableBorderColor,
-            rowCount = rows.size,
-            columnCount = columnCount,
-            backgroundColor = { rowIndex, _ ->
-                if (rowIndex == 0) UserMessageBackground else Color.Transparent
-            },
-            content = { rowIndex, columnIndex ->
-                val cellText = rows.getOrNull(rowIndex)?.getOrNull(columnIndex) ?: ""
+    // Преобразуем строки в список списков лямбд-ячеек (как требует библиотека)
+    val tableContent = rows.map { row ->
+        (0 until columnCount).map { colIndex ->
+            val cellText = row.getOrNull(colIndex) ?: ""
+            {
                 Text(
                     text = cellText,
                     color = TextColor,
                     fontSize = 14.sp,
-                    fontWeight = if (rowIndex == 0) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if (rows.indexOf(row) == 0) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.padding(8.dp),
                     softWrap = true
                 )
             }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        AutoSizeTable(
+            modifier = Modifier.padding(8.dp),
+            outlineColor = TableBorderColor,
+            content = tableContent,
+            backgroundColor = { rowIndex, _ ->
+                if (rowIndex == 0) UserMessageBackground else Color.Transparent
+            },
+            fixedTopSize = 0,
+            fixedStartSize = 0
         )
     }
 }
