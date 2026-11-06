@@ -37,19 +37,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.auth.FirebaseAuth
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
@@ -114,7 +110,6 @@ fun AuthScreen(authViewModel: AuthViewModel) {
     val errorMessage by authViewModel.errorMessage.collectAsState()
     val resetSent by authViewModel.resetPasswordSent.collectAsState()
 
-    // Диалог сброса пароля
     if (showResetDialog) {
         var resetEmail by remember { mutableStateOf("") }
         AlertDialog(
@@ -611,6 +606,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
+// ИДЕАЛЬНАЯ ТАБЛИЦА (СОВЕТ ОТ ИИ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -619,43 +615,59 @@ fun RealTable(tableMarkdown: String) {
             .map { line ->
                 line.trim().removePrefix("|").removeSuffix("|")
                     .split("|")
-                    .map { it.trim().replace("**", "").replace("`", "") }
+                    .map { 
+                        it.trim()
+                            .replace("**", "")
+                            .replace("`", "")
+                            .replace("<br>", "\n") // ФИКС <br>
+                            .replace("<br/>", "\n")
+                            .replace("<br />", "\n")
+                    }
             }
     }
 
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    val textMeasurer = rememberTextMeasurer()
-    val density = LocalDensity.current
+    // Оборачиваем в BoxWithConstraints, чтобы понять доступную ширину
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val tableWidth = maxWidth // Ширина экрана
 
-    val columnWidths = remember(rows) {
-        List(columnCount) { colIndex ->
-            val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
-            val widthPx = textMeasurer.measure(text = maxText, style = TextStyle(fontSize = 14.sp)).size.width
-            val widthDp = with(density) { widthPx.toDp() }
-            (widthDp + 16.dp).coerceIn(80.dp, 300.dp)
-        }
-    }
-
-    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-        Column(modifier = Modifier.border(1.dp, TableBorderColor, RoundedCornerShape(8.dp)).clip(RoundedCornerShape(8.dp))) {
-            rows.forEachIndexed { rowIndex, row ->
-                val isHeader = rowIndex == 0
-                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                    for (i in 0 until columnCount) {
-                        val cellText = row.getOrNull(i) ?: ""
-                        Box(
-                            modifier = Modifier.width(columnWidths[i]).fillMaxHeight()
-                                .background(if (isHeader) UserMessageBackground else Color.Transparent)
-                                .border(0.5.dp, TableBorderColor).padding(8.dp),
-                            contentAlignment = Alignment.TopStart
-                        ) {
-                            Text(
-                                text = cellText, color = TextColor, fontSize = 14.sp,
-                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-                                softWrap = true
-                            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()) // Скролл, если не влезает
+        ) {
+            Column(
+                modifier = Modifier
+                    .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .width(if (columnCount <= 2) tableWidth else tableWidth * 1.5f) // Умная ширина
+            ) {
+                rows.forEachIndexed { rowIndex, row ->
+                    val isHeader = rowIndex == 0
+                    
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        for (i in 0 until columnCount) {
+                            val cellText = row.getOrNull(i) ?: ""
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f) // Столбцы делят ширину поровну
+                                    .fillMaxHeight()
+                                    .background(if (isHeader) UserMessageBackground else Color.Transparent)
+                                    .border(0.5.dp, TableBorderColor)
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.TopStart
+                            ) {
+                                Text(
+                                    text = cellText,
+                                    color = TextColor,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
+                                    softWrap = true
+                                )
+                            }
                         }
                     }
                 }
