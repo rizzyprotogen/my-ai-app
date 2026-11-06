@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.kosenda.autosizetable.AutoSizeTable
+import ksnd.autosizetable.AutoSizeTable // <-- ИСПРАВЛЕННЫЙ ИМПОРТ
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
@@ -630,7 +630,6 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Оборачиваем в горизонтальную прокрутку на случай, если таблица не влезет
     Box(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
         AutoSizeTable(
             modifier = Modifier.padding(8.dp),
