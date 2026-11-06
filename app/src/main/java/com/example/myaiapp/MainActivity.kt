@@ -1,5 +1,8 @@
 package com.example.myaiapp
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -49,6 +52,7 @@ val BotMessageBackground = Color(0xFF343541)
 val UserMessageBackground = Color(0xFF444654)
 val InputBarBackground = Color(0xFF40414F)
 val CodeBackground = Color(0xFF1E1E1E)
+val CodeHeaderBackground = Color(0xFF2D2D2D)
 val TableBorderColor = Color(0xFF555555)
 val AccentGreen = Color(0xFF10A37F)
 val TextColor = Color(0xFFECECF1)
@@ -174,13 +178,13 @@ fun ChatGptScreen(chatViewModel: ChatViewModel, onOpenSettings: () -> Unit) {
 // ПАРСЕР
 sealed class MessagePart {
     data class TextPart(val text: String) : MessagePart()
-    data class CodePart(val code: String) : MessagePart()
+    data class CodePart(val code: String, val language: String) : MessagePart()
     data class TablePart(val table: String) : MessagePart()
 }
 
 fun parseMessage(text: String): List<MessagePart> {
     val parts = mutableListOf<MessagePart>()
-    val codeRegex = Regex("```(?:[a-zA-Z0-9]+)?\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
+    val codeRegex = Regex("```([a-zA-Z0-9#+]*)\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
     
     var lastIndex = 0
     codeRegex.findAll(text).forEach { match ->
@@ -188,7 +192,9 @@ fun parseMessage(text: String): List<MessagePart> {
             val textBefore = text.substring(lastIndex, match.range.first)
             parts.addAll(parseTables(textBefore))
         }
-        parts.add(MessagePart.CodePart(match.groupValues[1].trim()))
+        val language = match.groupValues[1].trim()
+        val code = match.groupValues[2].trim()
+        parts.add(MessagePart.CodePart(code, if (language.isEmpty()) "text" else language))
         lastIndex = match.range.last + 1
     }
     
@@ -284,21 +290,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                                     MarkdownRenderer(text = part.text)
                                 }
                                 is MessagePart.CodePart -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(CodeBackground)
-                                            .horizontalScroll(rememberScrollState())
-                                            .padding(12.dp)
-                                    ) {
-                                        Text(
-                                            text = part.code,
-                                            color = Color(0xFFA9B7C6),
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 14.sp
-                                        )
-                                    }
+                                    CodeBlock(code = part.code, language = part.language)
                                 }
                                 is MessagePart.TablePart -> {
                                     ComposeTableRenderer(tableMarkdown = part.table)
@@ -308,6 +300,71 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
                     }
                 }
             }
+        }
+    }
+}
+
+// БЛОК КОДА С КНОПКОЙ КОПИРОВАНИЯ
+@Composable
+fun CodeBlock(code: String, language: String) {
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    
+    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(CodeBackground)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CodeHeaderBackground)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = language,
+                color = HintColor,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+            
+            Text(
+                text = if (copied) "Скопировано!" else "Копировать",
+                color = AccentGreen,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable {
+                    val clip = ClipData.newPlainText("code", code)
+                    clipboardManager.setPrimaryClip(clip)
+                    copied = true
+                }
+            )
+        }
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(12.dp)
+        ) {
+            Text(
+                text = code,
+                color = Color(0xFFA9B7C6),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp
+            )
+        }
+    }
+    
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(2000)
+            copied = false
         }
     }
 }
@@ -332,7 +389,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНЫЙ РЕНДЕРЕР ТАБЛИЦ (РОВНАЯ СЕТКА)
+// ИДЕАЛЬНЫЙ РЕНДЕРЕР ТАБЛИЦ (АДАПТИВНЫЙ)
 @Composable
 fun ComposeTableRenderer(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -349,30 +406,30 @@ fun ComposeTableRenderer(tableMarkdown: String) {
 
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Горизонтальная прокрутка на случай, если таблица шире экрана
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
     ) {
-        // Фиксированная ширина для каждого столбца, чтобы сетка не ехала
-        val columnWidth = if (columnCount <= 2) 150.dp else 120.dp
-
         Column(
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
+                .width(IntrinsicSize.Max) // Таблица подстраивается под контент
         ) {
             rows.forEachIndexed { rowIndex, row ->
                 val isHeader = rowIndex == 0
                 
+                // Каждая строка измеряется по самому высокому контенту, чтобы сетка была ровной
                 Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                     for (i in 0 until columnCount) {
                         val cellText = row.getOrNull(i) ?: ""
                         
                         Box(
                             modifier = Modifier
-                                .width(columnWidth) // Жестко задаем ширину каждому столбцу
+                                // Минимум 80dp, но если текст длиннее — расширяется
+                                .widthIn(min = 80.dp)
+                                .width(IntrinsicSize.Max)
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
