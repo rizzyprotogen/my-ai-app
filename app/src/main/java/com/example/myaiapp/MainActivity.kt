@@ -34,8 +34,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,7 +81,7 @@ fun RizzyApp(chatViewModel: ChatViewModel = viewModel()) {
     }
 }
 
-// ВЫНЕС CHATINPUTBAR ПОВЫШЕ, ЧТОБЫ ОНА НЕ БЫЛА В КОНЦЕ ФАЙЛА
+// ВЫНЕС CHATINPUTBAR ПОВЫШЕ
 @Composable
 fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
     Surface(color = ChatGptBackground, modifier = Modifier.fillMaxWidth()) {
@@ -298,6 +300,11 @@ fun parseTables(text: String): List<MessagePart> {
     return parts
 }
 
+// Функция для проверки, содержит ли текст разметку
+fun containsMarkdown(text: String): Boolean {
+    return text.contains("**") || text.contains("##") || text.contains("|") || text.contains("```")
+}
+
 @Composable
 fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     var displayedText by remember { mutableStateOf(if (isLatest) "" else message.text) }
@@ -306,14 +313,22 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
     LaunchedEffect(message.id) {
         if (isLatest) {
             val text = message.text
-            var i = 0
-            while (i < text.length) {
-                val end = (i + 15).coerceAtMost(text.length)
-                displayedText = text.substring(0, end)
-                i = end
-                delay(1) 
+            
+            // ЕСЛИ ТЕКСТ СОДЕРЖИТ РАЗМЕТКУ — ПОКАЗЫВАЕМ СРАЗУ, БЕЗ АНИМАЦИИ
+            if (containsMarkdown(text)) {
+                displayedText = text
+                isPrinting = false
+            } else {
+                // Иначе печатаем
+                var i = 0
+                while (i < text.length) {
+                    val end = (i + 15).coerceAtMost(text.length)
+                    displayedText = text.substring(0, end)
+                    i = end
+                    delay(1) 
+                }
+                isPrinting = false
             }
-            isPrinting = false
         } else {
             displayedText = message.text
             isPrinting = false
@@ -330,6 +345,7 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
             if (message.isUser) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
+                // Если еще печатается, показываем простой текст (без разметки), но разметки там и нет
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
@@ -440,7 +456,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// УМНАЯ ТАБЛИЦА
+// УМНАЯ ТАБЛИЦА (АДАПТИВНАЯ ШИРИНА)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -456,13 +472,31 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
+    // Измеряем ширину самого длинного СЛОВА в каждом столбце
+    val textMeasurer = rememberTextMeasurer()
+    val columnWidths = remember(rows) {
+        List(columnCount) { colIndex ->
+            val maxWord = rows.maxOfOrNull { row -> 
+                val text = row.getOrNull(colIndex) ?: ""
+                // Берем самое длинное слово в ячейке
+                text.split(" ").maxByOrNull { it.length } ?: ""
+            } ?: ""
+            
+            val width = textMeasurer.measure(
+                text = maxWord,
+                style = TextStyle(fontSize = 14.sp)
+            ).size.width
+            
+            // Переводим в dp + отступ
+            (width / 3).dp.coerceIn(80.dp, 200.dp)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
     ) {
-        val columnWidth = 140.dp
-
         Column(
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
@@ -477,7 +511,7 @@ fun RealTable(tableMarkdown: String) {
                         
                         Box(
                             modifier = Modifier
-                                .width(columnWidth)
+                                .width(columnWidths[i])
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
