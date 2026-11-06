@@ -418,7 +418,7 @@ fun RealTable(tableMarkdown: String) {
             ).size.width
             
             // Переводим в dp и добавляем padding (+16dp), ограничивая максимум 250dp
-            (width / 3).dp.coerceIn(80.dp, 250.dp) // Убрали деление на 3, ставим /3 для конвертации px в dp (примерно)
+            (width / 3).dp.coerceIn(80.dp, 250.dp)
         }
     }
 
@@ -495,4 +495,119 @@ fun SettingsScreen(chatViewModel: ChatViewModel, onBack: () -> Unit) {
         containerColor = ChatGptBackground
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("Модель ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = settings.selectedModel == "openai/gpt-oss-120b", onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-120b")) })
+                Text("Умная (gpt-oss-120b)", color = TextColor)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = settings.selectedModel == "openai/gpt-oss-20b", onClick = { chatViewModel.updateSettings(settings.copy(selectedModel = "openai/gpt-oss-20b")) })
+                Text("Быстрая (gpt-oss-20b)", color = TextColor)
+            }
+
+            Divider(color = UserMessageBackground)
+
+            Text("Креативность (Температура): ${String.format("%.1f", settings.temperature)}", color = AccentGreen, fontWeight = FontWeight.Bold)
+            Slider(value = settings.temperature, onValueChange = { chatViewModel.updateSettings(settings.copy(temperature = it)) }, valueRange = 0f..1f)
+
+            Divider(color = UserMessageBackground)
+
+            Text("Характер ИИ", color = AccentGreen, fontWeight = FontWeight.Bold)
             
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextColor)
+                ) {
+                    val currentPersona = AiPersona.valueOf(settings.persona)
+                    Text(currentPersona.displayName)
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.background(BotMessageBackground)
+                ) {
+                    AiPersona.values().forEach { persona ->
+                        DropdownMenuItem(
+                            text = { Text(persona.displayName, color = TextColor) },
+                            onClick = {
+                                chatViewModel.updateSettings(settings.copy(persona = persona.name))
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Button(onClick = { showClearDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = DangerRed), modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Delete, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Очистить все чаты")
+            }
+        }
+
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                title = { Text("Очистить чаты?") },
+                text = { Text("Все ваши диалоги будут безвозвратно удалены.") },
+                confirmButton = { TextButton(onClick = { chatViewModel.clearAllChats(); showClearDialog = false; onBack() }) { Text("Удалить", color = DangerRed) } },
+                dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("Отмена") } },
+                containerColor = BotMessageBackground
+            )
+        }
+    }
+}
+
+@Composable
+fun ChatInputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit) {
+    Surface(color = ChatGptBackground, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(26.dp))
+                .background(InputBarBackground)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextField(
+                value = text,
+                onValueChange = onTextChange,
+                placeholder = { Text(text = "Введите текст...", color = HintColor, fontSize = 15.sp) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = AccentGreen,
+                    focusedTextColor = TextColor,
+                    unfocusedTextColor = TextColor
+                ),
+                modifier = Modifier.weight(1f)
+            )
+
+            val isSendEnabled = text.trim().isNotEmpty()
+
+            IconButton(
+                onClick = onSend,
+                enabled = isSendEnabled,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(if (isSendEnabled) AccentGreen else Color(0xFF565869))
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Отправить",
+                    tint = if (isSendEnabled) Color.White else Color(0xFF8E8EA0),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
