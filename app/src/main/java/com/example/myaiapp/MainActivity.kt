@@ -300,7 +300,6 @@ fun parseTables(text: String): List<MessagePart> {
     return parts
 }
 
-// Функция для проверки, содержит ли текст разметку
 fun containsMarkdown(text: String): Boolean {
     return text.contains("**") || text.contains("##") || text.contains("|") || text.contains("```")
 }
@@ -314,12 +313,10 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
         if (isLatest) {
             val text = message.text
             
-            // ЕСЛИ ТЕКСТ СОДЕРЖИТ РАЗМЕТКУ — ПОКАЗЫВАЕМ СРАЗУ, БЕЗ АНИМАЦИИ
             if (containsMarkdown(text)) {
                 displayedText = text
                 isPrinting = false
             } else {
-                // Иначе печатаем
                 var i = 0
                 while (i < text.length) {
                     val end = (i + 15).coerceAtMost(text.length)
@@ -345,7 +342,6 @@ fun AnimatedMessageBubble(message: Message, isLatest: Boolean) {
             if (message.isUser) {
                 Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
             } else {
-                // Если еще печатается, показываем простой текст (без разметки), но разметки там и нет
                 if (isPrinting) {
                     Text(text = displayedText, color = TextColor, fontSize = 15.sp, lineHeight = 20.sp)
                 } else {
@@ -456,7 +452,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// УМНАЯ ТАБЛИЦА (АДАПТИВНАЯ ШИРИНА)
+// АДАПТИВНАЯ ТАБЛИЦА (КАК В СОВЕТЕ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -472,23 +468,18 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Измеряем ширину самого длинного СЛОВА в каждом столбце
+    // Измеряем ширину самого длинного текста в столбце (или слова)
     val textMeasurer = rememberTextMeasurer()
     val columnWidths = remember(rows) {
         List(columnCount) { colIndex ->
-            val maxWord = rows.maxOfOrNull { row -> 
-                val text = row.getOrNull(colIndex) ?: ""
-                // Берем самое длинное слово в ячейке
-                text.split(" ").maxByOrNull { it.length } ?: ""
-            } ?: ""
-            
+            val maxText = rows.maxOfOrNull { row -> row.getOrNull(colIndex) ?: "" } ?: ""
             val width = textMeasurer.measure(
-                text = maxWord,
+                text = maxText,
                 style = TextStyle(fontSize = 14.sp)
             ).size.width
             
-            // Переводим в dp + отступ
-            (width / 3).dp.coerceIn(80.dp, 200.dp)
+            // Переводим в dp и добавляем padding (16dp). Не делим на 3!
+            (width / 2).dp.coerceIn(80.dp, 300.dp) // Попробовал /2 вместо /3
         }
     }
 
