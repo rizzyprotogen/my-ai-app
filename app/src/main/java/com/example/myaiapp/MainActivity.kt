@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import ksnd.autosizetable.AutoSizeTable
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import kotlinx.coroutines.delay
@@ -607,7 +606,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНАЯ ТАБЛИЦА БЕЗ MARKWON (ЧТОБЫ НЕ БЫЛО ВЫЛЕТОВ)
+// НАДЕЖНАЯ ТАБЛИЦА (БЕЗ AUTOSIZETABLE)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -630,37 +629,47 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Явно указываем, что лямбды внутри списков - это @Composable функции
-    val tableContent: List<List<@Composable () -> Unit>> = rows.mapIndexed { rowIndex, row ->
-        (0 until columnCount).map { colIndex ->
-            val cellText = row.getOrNull(colIndex) ?: ""
-            val isHeader = rowIndex == 0
-            
-            @Composable {
-                // ИСПОЛЬЗУЕМ ПРОСТОЙ TEXT, А НЕ MARKWON, ЧТОБЫ ИЗБЕЖАТЬ КОНФЛИКТА
-                Text(
-                    text = cellText,
-                    color = TextColor,
-                    fontSize = 14.sp,
-                    fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.padding(8.dp),
-                    softWrap = true
-                )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+    ) {
+        // Фиксированная ширина столбца, чтобы сетка была ровной
+        val columnWidth = 140.dp
+
+        Column(
+            modifier = Modifier
+                .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp))
+        ) {
+            rows.forEachIndexed { rowIndex, row ->
+                val isHeader = rowIndex == 0
+                
+                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    for (i in 0 until columnCount) {
+                        val cellText = row.getOrNull(i) ?: ""
+                        
+                        Box(
+                            modifier = Modifier
+                                .width(columnWidth)
+                                .fillMaxHeight()
+                                .background(if (isHeader) UserMessageBackground else Color.Transparent)
+                                .border(0.5.dp, TableBorderColor)
+                                .padding(8.dp),
+                            contentAlignment = Alignment.TopStart
+                        ) {
+                            Text(
+                                text = cellText,
+                                color = TextColor,
+                                fontSize = 14.sp,
+                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
+                                softWrap = true
+                            )
+                        }
+                    }
+                }
             }
         }
-    }
-
-    Box(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-        AutoSizeTable(
-            modifier = Modifier.padding(8.dp),
-            outlineColor = TableBorderColor,
-            content = tableContent,
-            backgroundColor = { rowIndex, _ ->
-                if (rowIndex == 0) UserMessageBackground else Color.Transparent
-            },
-            fixedTopSize = 0,
-            fixedStartSize = 0
-        )
     }
 }
 
