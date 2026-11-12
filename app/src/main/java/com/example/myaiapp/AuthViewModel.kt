@@ -69,6 +69,7 @@ class AuthViewModel : ViewModel() {
         }
         _isLoading.value = true
         _errorMessage.value = null
+        _resetPasswordSent.value = false
         viewModelScope.launch {
             auth.sendPasswordResetEmail(email)
                 .addOnCompleteListener { task ->
