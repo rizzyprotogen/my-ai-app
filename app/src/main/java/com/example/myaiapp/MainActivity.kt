@@ -609,7 +609,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// УМНАЯ И БЕЗОПАСНАЯ ТАБЛИЦА (БЕЗ ВЫЛЕТОВ, С ШИРОКИМИ СТОЛБЦАМИ)
+// УМНАЯ ТАБЛИЦА (С ШИРОКИМИ СТОЛБЦАМИ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -636,7 +636,7 @@ fun RealTable(tableMarkdown: String) {
     val density = LocalDensity.current
     val columnWidths = remember(rows) {
         List(columnCount) { colIndex ->
-            var maxWidth = 80.dp // Минимум
+            var maxWidth = 80.dp
             rows.forEach { row ->
                 val cell = row.getOrNull(colIndex) ?: ""
                 cell.split(" ", "\n").forEach { word ->
@@ -645,12 +645,12 @@ fun RealTable(tableMarkdown: String) {
                             text = word,
                             style = TextStyle(fontSize = 14.sp)
                         ).size.width
-                        val widthDp = with(density) { widthPx.toDp() } + 80.dp // ДОБАВИЛИ 80.dp ДЛЯ ШИРИНЫ
+                        val widthDp = with(density) { widthPx.toDp() } + 80.dp
                         if (widthDp > maxWidth) maxWidth = widthDp
                     }
                 }
             }
-            maxWidth.coerceAtMost(300.dp) // Увеличили максимум до 300dp
+            maxWidth.coerceAtMost(300.dp)
         }
     }
 
