@@ -609,7 +609,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// УМНАЯ И БЕЗОПАСНАЯ ТАБЛИЦА (БЕЗ ВЫЛЕТОВ)
+// УМНАЯ И БЕЗОПАСНАЯ ТАБЛИЦА (БЕЗ ВЫЛЕТОВ, С ШИРОКИМИ СТОЛБЦАМИ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -632,7 +632,6 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
-    // Вычисляем ширину столбца по самому длинному слову (безопасно для памяти)
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val columnWidths = remember(rows) {
@@ -646,12 +645,12 @@ fun RealTable(tableMarkdown: String) {
                             text = word,
                             style = TextStyle(fontSize = 14.sp)
                         ).size.width
-                        val widthDp = with(density) { widthPx.toDp() } + 20.dp
+                        val widthDp = with(density) { widthPx.toDp() } + 80.dp // ДОБАВИЛИ 80.dp ДЛЯ ШИРИНЫ
                         if (widthDp > maxWidth) maxWidth = widthDp
                     }
                 }
             }
-            maxWidth.coerceAtMost(250.dp) // Максимум, чтобы не улетало за экран
+            maxWidth.coerceAtMost(300.dp) // Увеличили максимум до 300dp
         }
     }
 
