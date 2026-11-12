@@ -34,17 +34,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val API_KEY = BuildConfig.GROQ_API_KEY
 
     init {
-        try {
-            val savedChats = memoryManager.loadChats()
-            if (savedChats.isEmpty()) {
+        _settings.value = memoryManager.loadSettings()
+        loadChatsFromCloud()
+    }
+
+    fun loadChatsFromCloud() {
+        memoryManager.loadChatsFromCloud { cloudChats ->
+            if (cloudChats.isEmpty()) {
                 createNewChat()
             } else {
-                _chats.value = savedChats
-                _currentChatId.value = savedChats.first().id
+                _chats.value = cloudChats
+                _currentChatId.value = cloudChats.first().id
             }
-            _settings.value = memoryManager.loadSettings()
-        } catch (e: Exception) {
-            createNewChat()
         }
     }
 
@@ -56,7 +57,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
         _chats.value = listOf(newChat) + _chats.value
         _currentChatId.value = newChat.id
-        saveChats()
+        saveChatsToCloud()
     }
 
     fun selectChat(chatId: String) {
@@ -70,8 +71,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAllChats() {
         _chats.value = emptyList()
-        memoryManager.clearAllChats()
         createNewChat()
+        saveChatsToCloud()
     }
 
     fun sendMessage(text: String) {
@@ -119,15 +120,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _chats.value = _chats.value.map { 
             if (it.id == chatId) it.copy(messages = newMessages, title = newTitle) else it 
         }
-        saveChats()
+        saveChatsToCloud()
     }
 
-    private fun saveChats() {
-        try {
-            memoryManager.saveChats(_chats.value)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+    private fun saveChatsToCloud() {
+        memoryManager.saveChatsToCloud(_chats.value)
     }
 
     private suspend fun fetchGroqResponse(input: String, history: List<Message>): String = withContext(Dispatchers.IO) {
@@ -145,7 +142,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         var systemPrompt = "${selectedPersona.promptPrefix} " +
                 "ВАЖНО: Всегда используй Markdown для оформления текста. " +
                 "Если делаешь таблицу, ОБЯЗАТЕЛЬНО ставь пробелы вокруг палочек: '| Текст | Текст |'. " +
-                "Не делай таблицы шире 3-4 столбцов! Если данных больше, напиши их обычным списком. " +
                 "Код оборачивай в тройные обратные кавычки (```). " +
                 "Не используй сложные математические формулы LaTeX (пиши обычным текстом)."
                 
@@ -190,10 +186,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val message = choices.getJSONObject(0).getJSONObject("message")
                 message.getString("content")
             } else {
-                "Ошибка от сервера: ${response.code}\n$responseBody"
+                when (response.code) {
+                    403 -> "⚠️ Доступ заблокирован. Включите VPN и попробуйте снова."
+                    429 -> "⏳ Слишком много запросов. Подождите немного и попробуйте снова."
+                    401 -> "🔑 Ошибка авторизации. Проверьте API-ключ."
+                    else -> "Ошибка сервера: ${response.code}. Попробуйте позже."
+                }
             }
+        } catch (e: java.net.UnknownHostException) {
+            "📶 Нет подключения к интернету или сайт заблокирован. Проверьте сеть и включите VPN."
         } catch (e: Exception) {
-            "Ошибка сети: ${e.message}"
+            "⚠️ Ошибка сети. Проверьте интернет или включите VPN. (${e.message})"
         }
     }
 }
