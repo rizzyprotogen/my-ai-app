@@ -607,7 +607,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// ИДЕАЛЬНАЯ ТАБЛИЦА С AUTOSIZETABLE (ПОЛНЫЙ ФИКС)
+// ИДЕАЛЬНАЯ ТАБЛИЦА БЕЗ MARKWON (ЧТОБЫ НЕ БЫЛО ВЫЛЕТОВ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -637,6 +637,7 @@ fun RealTable(tableMarkdown: String) {
             val isHeader = rowIndex == 0
             
             @Composable {
+                // ИСПОЛЬЗУЕМ ПРОСТОЙ TEXT, А НЕ MARKWON, ЧТОБЫ ИЗБЕЖАТЬ КОНФЛИКТА
                 Text(
                     text = cellText,
                     color = TextColor,
