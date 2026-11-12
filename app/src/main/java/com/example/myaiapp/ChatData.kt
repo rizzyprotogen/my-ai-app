@@ -2,10 +2,13 @@ package com.example.myaiapp
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+// Модель одного сообщения
 data class Message(
     val id: String = UUID.randomUUID().toString(),
     val text: String,
@@ -13,6 +16,7 @@ data class Message(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+// Модель целого чата (сессии)
 data class ChatSession(
     val id: String = UUID.randomUUID().toString(),
     var title: String = "Новый чат",
@@ -30,54 +34,26 @@ enum class AiPersona(val displayName: String, val promptPrefix: String) {
 data class AppSettings(
     val selectedModel: String = "openai/gpt-oss-120b",
     val temperature: Float = 0.7f,
-    val persona: String = "NORMAL" // Храним название характера (enum)
+    val persona: String = "NORMAL"
 )
 
+// Хранилище всех чатов, настроек и профиля
 class MemoryManager(context: Context) {
     private val prefs: SharedPreferences = 
         context.getSharedPreferences("rizzy_ai_prefs", Context.MODE_PRIVATE)
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
 
-    fun saveUserName(name: String) { prefs.edit().putString(KEY_USER_NAME, name).apply() }
-    fun getUserName(): String? = prefs.getString(KEY_USER_NAME, null)
-
-    fun saveChats(chats: List<ChatSession>) {
-        val jsonArray = JSONArray()
-        chats.forEach { chat ->
-            val chatObj = JSONObject().apply {
-                put("id", chat.id)
-                put("title", chat.title)
-                val msgArray = JSONArray()
-                chat.messages.forEach { msg ->
-                    msgArray.put(JSONObject().apply {
-                        put("id", msg.id); put("text", msg.text); put("isUser", msg.isUser); put("timestamp", msg.timestamp)
-                    })
-                }
-                put("messages", msgArray)
-            }
-            jsonArray.put(chatObj)
-        }
-        prefs.edit().putString(KEY_CHATS, jsonArray.toString()).apply()
+    // --- 1. Управление профилем и именем ---
+    fun saveUserName(name: String) {
+        prefs.edit().putString(KEY_USER_NAME, name).apply()
     }
 
-    fun loadChats(): List<ChatSession> {
-        val jsonString = prefs.getString(KEY_CHATS, null) ?: return emptyList()
-        val chats = mutableListOf<ChatSession>()
-        try {
-            val jsonArray = JSONArray(jsonString)
-            for (i in 0 until jsonArray.length()) {
-                val chatObj = jsonArray.getJSONObject(i)
-                val msgArray = chatObj.getJSONArray("messages")
-                val messages = mutableListOf<Message>()
-                for (j in 0 until msgArray.length()) {
-                    val msgObj = msgArray.getJSONObject(j)
-                    messages.add(Message(msgObj.getString("id"), msgObj.getString("text"), msgObj.getBoolean("isUser"), msgObj.getLong("timestamp")))
-                }
-                chats.add(ChatSession(chatObj.getString("id"), chatObj.getString("title"), messages))
-            }
-        } catch (e: Exception) { e.printStackTrace() }
-        return chats
+    fun getUserName(): String? {
+        return prefs.getString(KEY_USER_NAME, null)
     }
 
+    // --- 2. Управление настройками ---
     fun saveSettings(settings: AppSettings) {
         prefs.edit()
             .putString(KEY_MODEL, settings.selectedModel)
@@ -94,11 +70,68 @@ class MemoryManager(context: Context) {
         )
     }
 
-    fun clearAllChats() { prefs.edit().remove(KEY_CHATS).apply() }
+    // --- 3. Сохранение чатов в Firebase Firestore ---
+    fun saveChatsToCloud(chats: List<ChatSession>) {
+        val userId = auth.currentUser?.uid ?: return
+        
+        val chatsCollection = db.collection("users").document(userId).collection("chats")
+        
+        // Сначала удаляем старые документы (чтобы обновить данные)
+        chatsCollection.get().addOnSuccessListener { documents ->
+            for (document in documents) {
+                document.reference.delete()
+            }
+            
+            // Сохраняем актуальные чаты
+            chats.forEach { chat ->
+                val chatData = hashMapOf(
+                    "id" to chat.id,
+                    "title" to chat.title,
+                    "messages" to chat.messages.map { msg ->
+                        hashMapOf(
+                            "id" to msg.id,
+                            "text" to msg.text,
+                            "isUser" to msg.isUser,
+                            "timestamp" to msg.timestamp
+                        )
+                    }
+                )
+                chatsCollection.document(chat.id).set(chatData)
+            }
+        }
+    }
+
+    // --- 4. Загрузка чатов из Firebase Firestore ---
+    fun loadChatsFromCloud(onSuccess: (List<ChatSession>) -> Unit) {
+        val userId = auth.currentUser?.uid ?: return
+        val chatsCollection = db.collection("users").document(userId).collection("chats")
+        
+        chatsCollection.get().addOnSuccessListener { documents ->
+            val chats = mutableListOf<ChatSession>()
+            for (document in documents) {
+                val id = document.getString("id") ?: continue
+                val title = document.getString("title") ?: "Новый чат"
+                
+                val messagesList = mutableListOf<Message>()
+                val messagesRaw = document.get("messages") as? List<Map<String, Any>>
+                messagesRaw?.forEach { msgMap ->
+                    messagesList.add(
+                        Message(
+                            id = msgMap["id"] as? String ?: UUID.randomUUID().toString(),
+                            text = msgMap["text"] as? String ?: "",
+                            isUser = msgMap["isUser"] as? Boolean ?: false,
+                            timestamp = (msgMap["timestamp"] as? Long) ?: System.currentTimeMillis()
+                        )
+                    )
+                }
+                chats.add(ChatSession(id, title, messagesList))
+            }
+            onSuccess(chats)
+        }
+    }
 
     companion object {
         private const val KEY_USER_NAME = "user_name"
-        private const val KEY_CHATS = "all_chats"
         private const val KEY_MODEL = "selected_model"
         private const val KEY_TEMPERATURE = "temperature"
         private const val KEY_PERSONA = "persona"
