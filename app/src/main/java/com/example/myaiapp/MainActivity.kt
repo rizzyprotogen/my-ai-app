@@ -37,10 +37,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -606,7 +609,7 @@ fun MarkdownRenderer(text: String) {
     )
 }
 
-// НАДЕЖНАЯ ТАБЛИЦА (БЕЗ AUTOSIZETABLE)
+// УМНАЯ И БЕЗОПАСНАЯ ТАБЛИЦА (БЕЗ ВЫЛЕТОВ)
 @Composable
 fun RealTable(tableMarkdown: String) {
     val rows = remember(tableMarkdown) {
@@ -629,14 +632,34 @@ fun RealTable(tableMarkdown: String) {
     if (rows.isEmpty()) return
     val columnCount = rows.maxOfOrNull { it.size } ?: 1
 
+    // Вычисляем ширину столбца по самому длинному слову (безопасно для памяти)
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val columnWidths = remember(rows) {
+        List(columnCount) { colIndex ->
+            var maxWidth = 80.dp // Минимум
+            rows.forEach { row ->
+                val cell = row.getOrNull(colIndex) ?: ""
+                cell.split(" ", "\n").forEach { word ->
+                    if (word.isNotEmpty()) {
+                        val widthPx = textMeasurer.measure(
+                            text = word,
+                            style = TextStyle(fontSize = 14.sp)
+                        ).size.width
+                        val widthDp = with(density) { widthPx.toDp() } + 20.dp
+                        if (widthDp > maxWidth) maxWidth = widthDp
+                    }
+                }
+            }
+            maxWidth.coerceAtMost(250.dp) // Максимум, чтобы не улетало за экран
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
     ) {
-        // Фиксированная ширина столбца, чтобы сетка была ровной
-        val columnWidth = 140.dp
-
         Column(
             modifier = Modifier
                 .border(1.dp, TableBorderColor, RoundedCornerShape(8.dp))
@@ -651,7 +674,7 @@ fun RealTable(tableMarkdown: String) {
                         
                         Box(
                             modifier = Modifier
-                                .width(columnWidth)
+                                .width(columnWidths[i])
                                 .fillMaxHeight()
                                 .background(if (isHeader) UserMessageBackground else Color.Transparent)
                                 .border(0.5.dp, TableBorderColor)
