@@ -35,7 +35,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         _settings.value = memoryManager.loadSettings()
-        loadChatsFromCloud()
+        loadChatsFromCloud() // Загружаем чаты из облака при старте
     }
 
     fun loadChatsFromCloud() {
@@ -72,7 +72,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAllChats() {
         _chats.value = emptyList()
         createNewChat()
-        saveChatsToCloud()
     }
 
     fun sendMessage(text: String) {
@@ -120,7 +119,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _chats.value = _chats.value.map { 
             if (it.id == chatId) it.copy(messages = newMessages, title = newTitle) else it 
         }
-        saveChatsToCloud()
+        saveChatsToCloud() // Сохраняем в облако
     }
 
     private fun saveChatsToCloud() {
