@@ -2,13 +2,11 @@ package com.example.myaiapp
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import org.json.JSONArray
-import org.json.JSONObject
 import java.util.UUID
 
-// Модель одного сообщения
 data class Message(
     val id: String = UUID.randomUUID().toString(),
     val text: String,
@@ -16,14 +14,12 @@ data class Message(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-// Модель целого чата (сессии)
 data class ChatSession(
     val id: String = UUID.randomUUID().toString(),
     var title: String = "Новый чат",
     var messages: List<Message> = emptyList()
 )
 
-// Характеры ИИ
 enum class AiPersona(val displayName: String, val promptPrefix: String) {
     NORMAL("Обычный", "Ты - RizzyAI, дружелюбный и умный ИИ-помощник. Отвечай понятно."),
     SARCASTIC("Дерзкий", "Ты - RizzyAI. Отвечай с сарказмом, дерзко, но по делу."),
@@ -37,14 +33,12 @@ data class AppSettings(
     val persona: String = "NORMAL"
 )
 
-// Хранилище всех чатов, настроек и профиля
 class MemoryManager(context: Context) {
     private val prefs: SharedPreferences = 
         context.getSharedPreferences("rizzy_ai_prefs", Context.MODE_PRIVATE)
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    // --- 1. Управление профилем и именем ---
     fun saveUserName(name: String) {
         prefs.edit().putString(KEY_USER_NAME, name).apply()
     }
@@ -53,7 +47,6 @@ class MemoryManager(context: Context) {
         return prefs.getString(KEY_USER_NAME, null)
     }
 
-    // --- 2. Управление настройками ---
     fun saveSettings(settings: AppSettings) {
         prefs.edit()
             .putString(KEY_MODEL, settings.selectedModel)
@@ -70,19 +63,21 @@ class MemoryManager(context: Context) {
         )
     }
 
-    // --- 3. Сохранение чатов в Firebase Firestore ---
+    // --- СОХРАНЕНИЕ В ОБЛАКО ---
     fun saveChatsToCloud(chats: List<ChatSession>) {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            Log.e("RIZZY_DEBUG", "Ошибка сохранения: пользователь не авторизован")
+            return
+        }
         
         val chatsCollection = db.collection("users").document(userId).collection("chats")
         
-        // Сначала удаляем старые документы (чтобы обновить данные)
         chatsCollection.get().addOnSuccessListener { documents ->
             for (document in documents) {
                 document.reference.delete()
             }
             
-            // Сохраняем актуальные чаты
             chats.forEach { chat ->
                 val chatData = hashMapOf(
                     "id" to chat.id,
@@ -97,13 +92,24 @@ class MemoryManager(context: Context) {
                     }
                 )
                 chatsCollection.document(chat.id).set(chatData)
+                    .addOnFailureListener { e ->
+                        Log.e("RIZZY_DEBUG", "Ошибка записи в Firestore: ${e.message}")
+                    }
             }
+        }.addOnFailureListener { e ->
+            Log.e("RIZZY_DEBUG", "Ошибка чтения Firestore: ${e.message}")
         }
     }
 
-    // --- 4. Загрузка чатов из Firebase Firestore ---
+    // --- ЗАГРУЗКА ИЗ ОБЛАКА ---
     fun loadChatsFromCloud(onSuccess: (List<ChatSession>) -> Unit) {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            Log.e("RIZZY_DEBUG", "Ошибка загрузки: пользователь не авторизован")
+            onSuccess(emptyList())
+            return
+        }
+        
         val chatsCollection = db.collection("users").document(userId).collection("chats")
         
         chatsCollection.get().addOnSuccessListener { documents ->
@@ -126,7 +132,11 @@ class MemoryManager(context: Context) {
                 }
                 chats.add(ChatSession(id, title, messagesList))
             }
+            Log.d("RIZZY_DEBUG", "Загружено чатов из облака: ${chats.size}")
             onSuccess(chats)
+        }.addOnFailureListener { e ->
+            Log.e("RIZZY_DEBUG", "Ошибка загрузки из Firestore: ${e.message}")
+            onSuccess(emptyList())
         }
     }
 
